@@ -1,0 +1,249 @@
+{
+  "last_node_id": 8,
+  "last_link_id": 7,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "PrimitiveNode",
+      "pos": [100, 50],
+      "size": [210, 82],
+      "flags": {},
+      "order": 0,
+      "mode": 4,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [1],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "strings": ["1girl"]
+      },
+      "widgets_values": ["1girl"]
+    },
+    {
+      "id": 2,
+      "type": "PrimitiveNode",
+      "pos": [100, 160],
+      "size": [210, 82],
+      "flags": {},
+      "order": 1,
+      "mode": 4,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [2],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "strings": ["2girls"]
+      },
+      "widgets_values": ["2girls"]
+    },
+    {
+      "id": 3,
+      "type": "PrimitiveNode",
+      "pos": [100, 270],
+      "size": [140, 58],
+      "flags": {},
+      "order": 2,
+      "mode": 4,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "INT",
+          "type": "INT",
+          "links": [3],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "seed": 42
+      },
+      "widgets_values": [42]
+    },
+    {
+      "id": 4,
+      "type": "PrimitiveNode",
+      "pos": [400, 50],
+      "size": [210, 82],
+      "flags": {},
+      "order": 3,
+      "mode": 4,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [4],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "strings": ["solo_character"]
+      },
+      "widgets_values": ["solo_character"]
+    },
+    {
+      "id": 5,
+      "type": "PrimitiveNode",
+      "pos": [400, 160],
+      "size": [210, 82],
+      "flags": {},
+      "order": 4,
+      "mode": 4,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [5],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "strings": ["group_characters"]
+      },
+      "widgets_values": ["group_characters"]
+    },
+    {
+      "id": 6,
+      "type": "OneTwoPersonToggle",
+      "pos": [700, 50],
+      "size": [315, 140],
+      "flags": {},
+      "order": 5,
+      "mode": 4,
+      "inputs": [
+        {
+          "name": "one_label",
+          "type": "STRING",
+          "link": 1,
+          "slot_index": 0
+        },
+        {
+          "name": "two_label",
+          "type": "STRING",
+          "link": 2,
+          "slot_index": 1
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 3,
+          "slot_index": 2
+        },
+        {
+          "name": "one_character",
+          "type": "STRING",
+          "link": 4,
+          "slot_index": 3
+        },
+        {
+          "name": "two_or_more_characters",
+          "type": "STRING",
+          "link": 5,
+          "slot_index": 4
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [6],
+          "slot_index": 0
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": null,
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "OneTwoPersonToggle"
+      },
+      "widgets_values": ["1girl", "2girls", 42]
+    },
+    {
+      "id": 7,
+      "type": "PrimitiveNode",
+      "pos": [400, 300],
+      "size": [210, 82],
+      "flags": {},
+      "order": 6,
+      "mode": 4,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [7],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "strings": ["standing, portrait"]
+      },
+      "widgets_values": ["standing, portrait"]
+    },
+    {
+      "id": 8,
+      "type": "TagJoin",
+      "pos": [1100, 50],
+      "size": [315, 200],
+      "flags": {},
+      "order": 7,
+      "mode": 4,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 6,
+          "slot_index": 0
+        },
+        {
+          "name": "tag_0",
+          "type": "STRING",
+          "link": 7,
+          "slot_index": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "links": null,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "TagJoin"
+      },
+      "widgets_values": [""]
+    }
+  ],
+  "links": [
+    [1, 1, 0, 6, 0, "STRING"],
+    [2, 2, 0, 6, 1, "STRING"],
+    [3, 3, 0, 6, 2, "INT"],
+    [4, 4, 0, 6, 3, "STRING"],
+    [5, 5, 0, 6, 4, "STRING"],
+    [6, 6, 0, 8, 0, "STRING"],
+    [7, 7, 0, 8, 1, "STRING"]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1,
+      "offset": [0, 0]
+    }
+  }
+}
