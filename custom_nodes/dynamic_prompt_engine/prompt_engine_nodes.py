@@ -107,10 +107,12 @@ class SeededTextPool:
     """Selects a deterministic text candidate from a multiline library based on seed + node id."""
 
     DESCRIPTION = (
-        "Picks one non-empty line from pool_text using hash(seed:node:{id}) % n "
-        "(independent stream per node). Supports Impact Pack {a|b} / __wildcard__ "
-        "on the chosen line; [empty] emits blank. Bypass chance 50% can emit empty "
-        "via a separate …:gate hash; Off never gates. Outputs text and passthrough seed."
+        "Picks one line from pool_text using hash(seed:node:{id}) % n "
+        "(independent stream per node). Blank/whitespace-only lines are skipped "
+        "and never chosen; only non-empty lines count as candidates. Supports "
+        "Impact Pack {a|b} / __wildcard__ on the chosen line; [empty] emits blank. "
+        "Bypass chance 50% can emit empty via a separate …:gate hash; Off never "
+        "gates. Outputs text and passthrough seed."
     )
 
     @classmethod
