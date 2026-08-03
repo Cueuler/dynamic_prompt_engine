@@ -367,27 +367,39 @@ class OneTwoPersonToggle:
                 f"{node_name}: 'seed' must be a valid integer, got {seed!r}."
             )
 
-        # Collect missing text inputs
+        # Build a map of which inputs are connected (have a link)
+        input_links = {}
+        if hasattr(self, "inputs"):
+            for inp in self.inputs:
+                if inp.name in (
+                    "one_label",
+                    "two_label",
+                    "one_character",
+                    "two_or_more_characters",
+                ):
+                    input_links[inp.name] = inp.link is not None
+
+        # Collect missing inputs: only validate if the input is NOT connected
         missing = []
-        try:
-            validate_text_input(one_label, "one_label", node_name)
-        except ValueError as e:
-            missing.append(str(e))
-        try:
-            validate_text_input(two_label, "two_label", node_name)
-        except ValueError as e:
-            missing.append(str(e))
-        try:
-            validate_text_input(one_character, "one_character", node_name)
-        except ValueError as e:
-            missing.append(str(e))
-        try:
-            validate_text_input(two_or_more_characters, "two_or_more_characters", node_name)
-        except ValueError as e:
-            missing.append(str(e))
+        for input_name, value in [
+            ("one_label", one_label),
+            ("two_label", two_label),
+            ("one_character", one_character),
+            ("two_or_more_characters", two_or_more_characters),
+        ]:
+            is_connected = input_links.get(input_name, False)
+            if is_connected:
+                # Connected — trust the input, skip validation
+                continue
+            try:
+                validate_text_input(value, input_name, node_name)
+            except ValueError as e:
+                missing.append(str(e))
 
         if missing:
-            raise ValueError(f"{node_name}: missing required inputs:\n" + "\n".join(missing))
+            raise ValueError(
+                f"{node_name}: missing required inputs:\n" + "\n".join(missing)
+            )
 
         # Branch selection
         if mode == "Random":
