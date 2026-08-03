@@ -1,0 +1,1526 @@
+{
+  "1": {
+    "inputs": {
+      "ckpt_name": "waiIllustriousSDXL_v140.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "Load Checkpoint"
+    }
+  },
+  "2": {
+    "inputs": {
+      "stop_at_clip_layer": -2,
+      "clip": [
+        "1",
+        1
+      ]
+    },
+    "class_type": "CLIPSetLastLayer",
+    "_meta": {
+      "title": "CLIP Set Last Layer"
+    }
+  },
+  "3": {
+    "inputs": {
+      "text": [
+        "140",
+        0
+      ],
+      "clip": [
+        "2",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "positive"
+    }
+  },
+  "4": {
+    "inputs": {
+      "text": "lazyneg, wrong anatomy, disproportional body, wrong body proportions, bad anatomy, morbid, mutate, disfigured, bad fingers, too many fingers, additional fingers, poorly drawn fingers, extra fingers, distorted hands, distorted fingers, bad quality, the worst quality, low quality, watermark, logo, Patreon, close up, portrait, ",
+      "clip": [
+        "2",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "negative"
+    }
+  },
+  "6": {
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "Empty Latent Image"
+    }
+  },
+  "7": {
+    "inputs": {
+      "samples": [
+        "20",
+        0
+      ],
+      "vae": [
+        "1",
+        2
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "8": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "7",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "10": {
+    "inputs": {
+      "model_name": "2x-AnimeSharpV4_RCAN.safetensors"
+    },
+    "class_type": "UpscaleModelLoader",
+    "_meta": {
+      "title": "Load Upscale Model"
+    }
+  },
+  "18": {
+    "inputs": {
+      "images": [
+        "7",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "20": {
+    "inputs": {
+      "add_noise": "enable",
+      "noise_seed": 0,
+      "steps": 40,
+      "cfg": 6,
+      "sampler_name": "euler",
+      "scheduler": "normal",
+      "start_at_step": 0,
+      "end_at_step": 10000,
+      "return_with_leftover_noise": "disable",
+      "model": [
+        "1",
+        0
+      ],
+      "positive": [
+        "3",
+        0
+      ],
+      "negative": [
+        "4",
+        0
+      ],
+      "latent_image": [
+        "6",
+        0
+      ]
+    },
+    "class_type": "KSamplerAdvanced",
+    "_meta": {
+      "title": "KSampler (Advanced)"
+    }
+  },
+  "101": {
+    "inputs": {
+      "pool_text": "[empty]\nsafe\nbeautiful background\nrealistic",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: 01_quality_meta_rating"
+    }
+  },
+  "107": {
+    "inputs": {
+      "pool_text": "full body view\ncowboy shot\nmedium shot\nwide shot",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: 02_camera_distance"
+    }
+  },
+  "108": {
+    "inputs": {
+      "pool_text": "eye level\nfrom below\nfrom above\nside view",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: 02_camera_angle"
+    }
+  },
+  "140": {
+    "inputs": {
+      "tag_0": [
+        "280",
+        0
+      ],
+      "tag_1": [
+        "281",
+        0
+      ],
+      "tag_2": [
+        "288",
+        0
+      ],
+      "tag_3": [
+        "289",
+        0
+      ],
+      "tag_4": [
+        "290",
+        0
+      ]
+    },
+    "class_type": "TagJoin",
+    "_meta": {
+      "title": "Ordered Tag Join"
+    }
+  },
+  "96": {
+    "inputs": {
+      "pool_text": "[empty]\nmasterpiece\nbest quality\nhigh quality",
+      "seed": 42,
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: 01_quality"
+    }
+  },
+  "97": {
+    "inputs": {
+      "pool_text": "[empty]\nvery aesthetic\ncinematic\nprofessional illustration",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: 01_rating"
+    }
+  },
+  "98": {
+    "inputs": {
+      "pool_text": "[empty]\nhighly detailed\ndepth of field\nsoft focus",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: 01_detail"
+    }
+  },
+  "99": {
+    "inputs": {
+      "pool_text": "[empty]\nsoft pastel colors\nvibrant colors\nwarm color palette",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: 01_palette"
+    }
+  },
+  "150": {
+    "inputs": {
+      "pool_text": "lying\nstanding\nsitting\nkneeling\ncrouching",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Solo / Pose"
+    }
+  },
+  "151": {
+    "inputs": {
+      "pool_text": "walking\nrunning\nstretching\ndancing\nresting",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Solo / Action"
+    }
+  },
+  "152": {
+    "inputs": {
+      "pool_text": "hand on hip\nhands clasped\nhands behind back\none hand raised\ntouching hair",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Solo / Hand Position"
+    }
+  },
+  "153": {
+    "inputs": {
+      "pool_text": "legs apart\ncrossed legs\none leg raised\nlegs together\nbent knees",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Solo / Leg Placement"
+    }
+  },
+  "154": {
+    "inputs": {
+      "pool_text": "looking at viewer\nlooking to the side\nlooking away\nlooking up\nlooking down",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Solo / Gaze Direction"
+    }
+  },
+  "155": {
+    "inputs": {
+      "tag_0": [
+        "150",
+        0
+      ],
+      "tag_1": [
+        "151",
+        0
+      ],
+      "tag_2": [
+        "152",
+        0
+      ],
+      "tag_3": [
+        "153",
+        0
+      ],
+      "tag_4": [
+        "154",
+        0
+      ]
+    },
+    "class_type": "TagJoin",
+    "_meta": {
+      "title": "Solo Composition Block"
+    }
+  },
+  "156": {
+    "inputs": {
+      "pool_text": "lying\nstanding\nsitting\nkneeling\ncrouching",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Pair / Body Pose"
+    }
+  },
+  "157": {
+    "inputs": {
+      "pool_text": "face-to-face\nback-to-back\nbelly-to-belly\ncheek-to-cheek\neye contact\nshoulder-to-shoulder\nside-by-side",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Pair / Relative Pose"
+    }
+  },
+  "158": {
+    "inputs": {
+      "pool_text": "hugging\nkissing\ndancing\nwalking together\ntalking\nfighting",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Pair / Action"
+    }
+  },
+  "159": {
+    "inputs": {
+      "pool_text": "holding hands\narms around each other\nhand on shoulder\nhand on waist\ninterlocked fingers",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Pair / Hand Interaction"
+    }
+  },
+  "160": {
+    "inputs": {
+      "pool_text": "intertwined legs\nlegs touching\nmirrored stance\none leg raised\nstaggered stance",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Pair / Leg Placement"
+    }
+  },
+  "161": {
+    "inputs": {
+      "pool_text": "looking at viewer\nlooking at each other\nlooking in the same direction\nlooking away from each other\nlooking to the side",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Pair / Gaze Direction"
+    }
+  },
+  "162": {
+    "inputs": {
+      "tag_0": [
+        "156",
+        0
+      ],
+      "tag_1": [
+        "157",
+        0
+      ],
+      "tag_2": [
+        "158",
+        0
+      ],
+      "tag_3": [
+        "159",
+        0
+      ],
+      "tag_4": [
+        "160",
+        0
+      ],
+      "tag_5": [
+        "161",
+        0
+      ]
+    },
+    "class_type": "TagJoin",
+    "_meta": {
+      "title": "Pair Composition Block"
+    }
+  },
+  "163": {
+    "inputs": {
+      "seed": [
+        "96",
+        1
+      ],
+      "one_label": "1girl",
+      "two_label": "2girls",
+      "one_character": [
+        "155",
+        0
+      ],
+      "two_or_more_characters": [
+        "162",
+        0
+      ]
+    },
+    "class_type": "OneTwoPersonToggle",
+    "_meta": {
+      "title": "One/Two Person: Composition"
+    }
+  },
+  "210": {
+    "inputs": {
+      "pool_text": "alice\nbeatrice\nceleste\ndiana",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 1 / Character Name"
+    }
+  },
+  "211": {
+    "inputs": {
+      "pool_text": "wlop\nsakimichan\nredjuice\nfuzichoco",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 1 / Artist Name"
+    }
+  },
+  "212": {
+    "inputs": {
+      "pool_text": "black hair\nblonde hair\nbrown hair\npink hair\nsilver hair",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 1 / Hair Color"
+    }
+  },
+  "213": {
+    "inputs": {
+      "pool_text": "short hair\nmedium hair\nlong hair\nshoulder-length hair",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 1 / Hair Length"
+    }
+  },
+  "214": {
+    "inputs": {
+      "pool_text": "straight hair\nponytail\ntwintails\nbraided hair\nmessy hair",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 1 / Hair Style"
+    }
+  },
+  "215": {
+    "inputs": {
+      "pool_text": "blue eyes\ngreen eyes\namber eyes\nbrown eyes\nviolet eyes",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 1 / Eye Color"
+    }
+  },
+  "216": {
+    "inputs": {
+      "pool_text": "round eyes\nnarrow eyes\nsleepy eyes\nupturned eyes",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 1 / Eye Shape"
+    }
+  },
+  "217": {
+    "inputs": {
+      "pool_text": "dilated pupils\nheart-shaped pupils\nstar-shaped pupils\nnormal pupils",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 1 / Pupils"
+    }
+  },
+  "218": {
+    "inputs": {
+      "pool_text": "smile\nblushing\nplayful smirk\ngentle expression\nserious expression",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 1 / Expression"
+    }
+  },
+  "219": {
+    "inputs": {
+      "pool_text": "slender body\nathletic body\nsoft body\ncurvy body",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 1 / Body Type"
+    }
+  },
+  "220": {
+    "inputs": {
+      "pool_text": "smooth skin\nfreckles\ntan skin\npale skin",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 1 / Skin Detail"
+    }
+  },
+  "221": {
+    "inputs": {
+      "pool_text": "small breasts\nmedium breasts\nlarge breasts\nflat chest",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 1 / Bust"
+    }
+  },
+  "222": {
+    "inputs": {
+      "pool_text": "cowboy vest\nsailor uniform\ncasual jacket\nsummer blouse",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 1 / Torso Clothes"
+    }
+  },
+  "223": {
+    "inputs": {
+      "pool_text": "denim shorts\npleated skirt\nlong pants\nleggings",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 1 / Leg Clothes"
+    }
+  },
+  "224": {
+    "inputs": {
+      "pool_text": "bra\nlace underwear\nbikini\nmatching underwear",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 1 / Underwear"
+    }
+  },
+  "225": {
+    "inputs": {
+      "pool_text": "gloves\nwristband\nbracelet\nfingerless gloves",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 1 / Hand Accessories"
+    }
+  },
+  "226": {
+    "inputs": {
+      "pool_text": "thigh straps\nanklet\nleg warmers\nknee pads",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 1 / Leg Accessories"
+    }
+  },
+  "227": {
+    "inputs": {
+      "pool_text": "belt\nchest harness\nshoulder bag\nbrooch",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 1 / Torso Accessories"
+    }
+  },
+  "228": {
+    "inputs": {
+      "pool_text": "cowboy hat\nberet\nsun hat\nhair ribbon",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 1 / Headwear"
+    }
+  },
+  "229": {
+    "inputs": {
+      "pool_text": "glasses\nsunglasses\nmonocle\ngoggles",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 1 / Eyewear"
+    }
+  },
+  "230": {
+    "inputs": {
+      "pool_text": "necklace\nchoker\nscarf\nbolo tie",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 1 / Neckwear"
+    }
+  },
+  "231": {
+    "inputs": {
+      "pool_text": "cowboy boots\nhigh heels\nsneakers\nbarefoot",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 1 / Footwear"
+    }
+  },
+  "240": {
+    "inputs": {
+      "pool_text": "elena\nfiona\ngabrielle\nhelena",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 2 / Character Name"
+    }
+  },
+  "241": {
+    "inputs": {
+      "pool_text": "wlop\nsakimichan\nredjuice\nfuzichoco",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 2 / Artist Name"
+    }
+  },
+  "242": {
+    "inputs": {
+      "pool_text": "black hair\nblonde hair\nbrown hair\nred hair\nsilver hair",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 2 / Hair Color"
+    }
+  },
+  "243": {
+    "inputs": {
+      "pool_text": "short hair\nmedium hair\nlong hair\nshoulder-length hair",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 2 / Hair Length"
+    }
+  },
+  "244": {
+    "inputs": {
+      "pool_text": "straight hair\nponytail\ntwintails\nbraided hair\nmessy hair",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 2 / Hair Style"
+    }
+  },
+  "245": {
+    "inputs": {
+      "pool_text": "blue eyes\ngreen eyes\namber eyes\nbrown eyes\nviolet eyes",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 2 / Eye Color"
+    }
+  },
+  "246": {
+    "inputs": {
+      "pool_text": "round eyes\nnarrow eyes\nsleepy eyes\nupturned eyes",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 2 / Eye Shape"
+    }
+  },
+  "247": {
+    "inputs": {
+      "pool_text": "dilated pupils\nheart-shaped pupils\nstar-shaped pupils\nnormal pupils",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 2 / Pupils"
+    }
+  },
+  "248": {
+    "inputs": {
+      "pool_text": "smile\nblushing\nplayful smirk\ngentle expression\nserious expression",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 2 / Expression"
+    }
+  },
+  "249": {
+    "inputs": {
+      "pool_text": "slender body\nathletic body\nsoft body\ncurvy body",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 2 / Body Type"
+    }
+  },
+  "250": {
+    "inputs": {
+      "pool_text": "smooth skin\nfreckles\ntan skin\npale skin",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 2 / Skin Detail"
+    }
+  },
+  "251": {
+    "inputs": {
+      "pool_text": "small breasts\nmedium breasts\nlarge breasts\nflat chest",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 2 / Bust"
+    }
+  },
+  "252": {
+    "inputs": {
+      "pool_text": "cowboy vest\nsailor uniform\ncasual jacket\nsummer blouse",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 2 / Torso Clothes"
+    }
+  },
+  "253": {
+    "inputs": {
+      "pool_text": "denim shorts\npleated skirt\nlong pants\nleggings",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 2 / Leg Clothes"
+    }
+  },
+  "254": {
+    "inputs": {
+      "pool_text": "bra\nlace underwear\nbikini\nmatching underwear",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 2 / Underwear"
+    }
+  },
+  "255": {
+    "inputs": {
+      "pool_text": "gloves\nwristband\nbracelet\nfingerless gloves",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 2 / Hand Accessories"
+    }
+  },
+  "256": {
+    "inputs": {
+      "pool_text": "thigh straps\nanklet\nleg warmers\nknee pads",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 2 / Leg Accessories"
+    }
+  },
+  "257": {
+    "inputs": {
+      "pool_text": "belt\nchest harness\nshoulder bag\nbrooch",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 2 / Torso Accessories"
+    }
+  },
+  "258": {
+    "inputs": {
+      "pool_text": "cowboy hat\nberet\nsun hat\nhair ribbon",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 2 / Headwear"
+    }
+  },
+  "259": {
+    "inputs": {
+      "pool_text": "glasses\nsunglasses\nmonocle\ngoggles",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 2 / Eyewear"
+    }
+  },
+  "260": {
+    "inputs": {
+      "pool_text": "necklace\nchoker\nscarf\nbolo tie",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 2 / Neckwear"
+    }
+  },
+  "261": {
+    "inputs": {
+      "pool_text": "cowboy boots\nhigh heels\nsneakers\nbarefoot",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Character 2 / Footwear"
+    }
+  },
+  "270": {
+    "inputs": {
+      "pool_text": "saloon\nforest\nbeach\ncity street\nbedroom",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Scene / Background"
+    }
+  },
+  "271": {
+    "inputs": {
+      "pool_text": "bar counter\nwooden chair\nflower vase\nlantern\nwindow",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Scene / Scene Objects"
+    }
+  },
+  "272": {
+    "inputs": {
+      "pool_text": "warm lighting\nrim lighting\nvolumetric lighting\nsoft lighting\nneon lighting",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Scene / Lighting"
+    }
+  },
+  "273": {
+    "inputs": {
+      "pool_text": "dust particles\nbloom\nlens flare\nmist\nrain",
+      "seed": [
+        "96",
+        1
+      ],
+      "bypass_chance": false
+    },
+    "class_type": "SeededTextPool",
+    "_meta": {
+      "title": "Pool: Scene / Effects"
+    }
+  },
+  "280": {
+    "inputs": {
+      "tag_0": [
+        "96",
+        0
+      ],
+      "tag_1": [
+        "97",
+        0
+      ],
+      "tag_2": [
+        "98",
+        0
+      ],
+      "tag_3": [
+        "99",
+        0
+      ],
+      "tag_4": [
+        "101",
+        0
+      ]
+    },
+    "class_type": "TagJoin",
+    "_meta": {
+      "title": "01 · Quality / Meta / Rating"
+    }
+  },
+  "281": {
+    "inputs": {
+      "tag_0": [
+        "163",
+        0
+      ],
+      "tag_1": [
+        "107",
+        0
+      ],
+      "tag_2": [
+        "108",
+        0
+      ]
+    },
+    "class_type": "TagJoin",
+    "_meta": {
+      "title": "02 · Composition"
+    }
+  },
+  "282": {
+    "inputs": {
+      "tag_0": [
+        "210",
+        0
+      ],
+      "tag_1": [
+        "211",
+        0
+      ],
+      "tag_2": [
+        "212",
+        0
+      ],
+      "tag_3": [
+        "213",
+        0
+      ],
+      "tag_4": [
+        "214",
+        0
+      ],
+      "tag_5": [
+        "215",
+        0
+      ],
+      "tag_6": [
+        "216",
+        0
+      ],
+      "tag_7": [
+        "217",
+        0
+      ],
+      "tag_8": [
+        "218",
+        0
+      ],
+      "tag_9": [
+        "219",
+        0
+      ],
+      "tag_10": [
+        "220",
+        0
+      ],
+      "tag_11": [
+        "221",
+        0
+      ]
+    },
+    "class_type": "TagJoin",
+    "_meta": {
+      "title": "03 · Character 1 Body Features"
+    }
+  },
+  "283": {
+    "inputs": {
+      "tag_0": [
+        "222",
+        0
+      ],
+      "tag_1": [
+        "223",
+        0
+      ],
+      "tag_2": [
+        "224",
+        0
+      ],
+      "tag_3": [
+        "225",
+        0
+      ],
+      "tag_4": [
+        "226",
+        0
+      ],
+      "tag_5": [
+        "227",
+        0
+      ],
+      "tag_6": [
+        "228",
+        0
+      ],
+      "tag_7": [
+        "229",
+        0
+      ],
+      "tag_8": [
+        "230",
+        0
+      ],
+      "tag_9": [
+        "231",
+        0
+      ]
+    },
+    "class_type": "TagJoin",
+    "_meta": {
+      "title": "04 · Character 1 Clothes / Accessories"
+    }
+  },
+  "284": {
+    "inputs": {
+      "tag_0": [
+        "240",
+        0
+      ],
+      "tag_1": [
+        "241",
+        0
+      ],
+      "tag_2": [
+        "242",
+        0
+      ],
+      "tag_3": [
+        "243",
+        0
+      ],
+      "tag_4": [
+        "244",
+        0
+      ],
+      "tag_5": [
+        "245",
+        0
+      ],
+      "tag_6": [
+        "246",
+        0
+      ],
+      "tag_7": [
+        "247",
+        0
+      ],
+      "tag_8": [
+        "248",
+        0
+      ],
+      "tag_9": [
+        "249",
+        0
+      ],
+      "tag_10": [
+        "250",
+        0
+      ],
+      "tag_11": [
+        "251",
+        0
+      ]
+    },
+    "class_type": "TagJoin",
+    "_meta": {
+      "title": "03 · Character 2 Body Features"
+    }
+  },
+  "285": {
+    "inputs": {
+      "tag_0": [
+        "252",
+        0
+      ],
+      "tag_1": [
+        "253",
+        0
+      ],
+      "tag_2": [
+        "254",
+        0
+      ],
+      "tag_3": [
+        "255",
+        0
+      ],
+      "tag_4": [
+        "256",
+        0
+      ],
+      "tag_5": [
+        "257",
+        0
+      ],
+      "tag_6": [
+        "258",
+        0
+      ],
+      "tag_7": [
+        "259",
+        0
+      ],
+      "tag_8": [
+        "260",
+        0
+      ],
+      "tag_9": [
+        "261",
+        0
+      ]
+    },
+    "class_type": "TagJoin",
+    "_meta": {
+      "title": "04 · Character 2 Clothes / Accessories"
+    }
+  },
+  "286": {
+    "inputs": {
+      "seed": [
+        "96",
+        1
+      ],
+      "one_label": "",
+      "two_label": "",
+      "two_or_more_characters": [
+        "284",
+        0
+      ]
+    },
+    "class_type": "OneTwoPersonToggle",
+    "_meta": {
+      "title": "Gate: Character 2 Body Features"
+    }
+  },
+  "287": {
+    "inputs": {
+      "seed": [
+        "96",
+        1
+      ],
+      "one_label": "",
+      "two_label": "",
+      "two_or_more_characters": [
+        "285",
+        0
+      ]
+    },
+    "class_type": "OneTwoPersonToggle",
+    "_meta": {
+      "title": "Gate: Character 2 Clothes / Accessories"
+    }
+  },
+  "288": {
+    "inputs": {
+      "tag_0": [
+        "282",
+        0
+      ],
+      "tag_1": [
+        "286",
+        0
+      ]
+    },
+    "class_type": "TagJoin",
+    "_meta": {
+      "title": "03 · Body Features"
+    }
+  },
+  "289": {
+    "inputs": {
+      "tag_0": [
+        "283",
+        0
+      ],
+      "tag_1": [
+        "287",
+        0
+      ]
+    },
+    "class_type": "TagJoin",
+    "_meta": {
+      "title": "04 · Clothes / Accessories"
+    }
+  },
+  "290": {
+    "inputs": {
+      "tag_0": [
+        "270",
+        0
+      ],
+      "tag_1": [
+        "271",
+        0
+      ],
+      "tag_2": [
+        "272",
+        0
+      ],
+      "tag_3": [
+        "273",
+        0
+      ]
+    },
+    "class_type": "TagJoin",
+    "_meta": {
+      "title": "05 · Background"
+    }
+  }
+}

@@ -1,0 +1,5718 @@
+{
+  "id": "b3aada8a-e6c0-48eb-ab83-78e2de89e122",
+  "revision": 0,
+  "last_node_id": 290,
+  "last_link_id": 197,
+  "nodes": [
+    {
+      "id": 6,
+      "type": "EmptyLatentImage",
+      "pos": [
+        100,
+        358
+      ],
+      "size": [
+        270,
+        106
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            45
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "EmptyLatentImage"
+      },
+      "widgets_values": [
+        1024,
+        1024,
+        1
+      ]
+    },
+    {
+      "id": 2,
+      "type": "CLIPSetLastLayer",
+      "pos": [
+        470,
+        130
+      ],
+      "size": [
+        270,
+        58
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            2,
+            3
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPSetLastLayer"
+      },
+      "widgets_values": [
+        -2
+      ]
+    },
+    {
+      "id": 1,
+      "type": "CheckpointLoaderSimple",
+      "pos": [
+        100,
+        130
+      ],
+      "size": [
+        270,
+        98
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            42
+          ]
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            1
+          ]
+        },
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            10
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CheckpointLoaderSimple"
+      },
+      "widgets_values": [
+        "waiIllustriousSDXL_v140.safetensors"
+      ]
+    },
+    {
+      "id": 10,
+      "type": "UpscaleModelLoader",
+      "pos": [
+        100,
+        594
+      ],
+      "size": [
+        270,
+        58
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "UPSCALE_MODEL",
+          "type": "UPSCALE_MODEL",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UpscaleModelLoader"
+      },
+      "widgets_values": [
+        "2x-AnimeSharpV4_RCAN.safetensors"
+      ]
+    },
+    {
+      "id": 20,
+      "type": "KSamplerAdvanced",
+      "pos": [
+        1364.8857133035951,
+        168.793412742689
+      ],
+      "size": [
+        312.3833312988281,
+        334
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 42
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 43
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 44
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 45
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            48
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSamplerAdvanced"
+      },
+      "widgets_values": [
+        "enable",
+        0,
+        "randomize",
+        40,
+        6,
+        "euler",
+        "normal",
+        0,
+        10000,
+        "disable"
+      ]
+    },
+    {
+      "id": 7,
+      "type": "VAEDecode",
+      "pos": [
+        1532.2620302850614,
+        69.88263240339721
+      ],
+      "size": [
+        140,
+        46
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 48
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 10
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            8,
+            36
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEDecode"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 18,
+      "type": "PreviewImage",
+      "pos": [
+        1729.6256465338788,
+        164.7816420962886
+      ],
+      "size": [
+        454.5730235511073,
+        362.33593713011464
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 36
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 8,
+      "type": "SaveImage",
+      "pos": [
+        1754.045554680535,
+        21.966110348026785
+      ],
+      "size": [
+        270,
+        58
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 8
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SaveImage"
+      },
+      "widgets_values": [
+        "ComfyUI"
+      ]
+    },
+    {
+      "id": 4,
+      "type": "CLIPTextEncode",
+      "pos": [
+        840,
+        431.75771067542246
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 3
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            44
+          ]
+        }
+      ],
+      "title": "negative",
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "lazyneg, wrong anatomy, disproportional body, wrong body proportions, bad anatomy, morbid, mutate, disfigured, bad fingers, too many fingers, additional fingers, poorly drawn fingers, extra fingers, distorted hands, distorted fingers, bad quality, the worst quality, low quality, watermark, logo, Patreon, close up, portrait, "
+      ]
+    },
+    {
+      "id": 3,
+      "type": "CLIPTextEncode",
+      "pos": [
+        841.4864362802409,
+        48.26454685278269
+      ],
+      "size": [
+        428.61175943488,
+        287.681198268181
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 197
+        },
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            43
+          ]
+        }
+      ],
+      "title": "positive",
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "lazympos, masterpiece, the best quality, very aesthetic, soft pastel colors, realistic, depth of field, safe,\n1girl, soft tick body, soft muscles, (plump:0.6), small tiny breasts, perky breasts, smooth skin,\nshort messy hair, (gradient hair), (bangs), hairs over one eye, hair ornament, beautiful big eyes, long eyelashes, cute face, fur on legs, fur on hands, fur on arms, fur on stomach,\nhorse tail, cowboy hat, bolo tie, bra, panties, saloon, Wild West, indoors, standing, one leg up, happy, ahegao, \nhugged from behind by a man clothed in cowboy clothes, hug, from behind, grabbing, \ndynamic pose, all body view, abstract background, beautiful background, simple background, "
+      ]
+    },
+    {
+      "id": 101,
+      "type": "SeededTextPool",
+      "pos": [
+        600,
+        800
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 101,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 49
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            137
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "[empty]\nsafe\nbeautiful background\nrealistic",
+        false,
+        0
+      ],
+      "title": "Pool: 01_quality_meta_rating"
+    },
+    {
+      "id": 107,
+      "type": "SeededTextPool",
+      "pos": [
+        1500,
+        800
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 107,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 50
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            139
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "full body view\ncowboy shot\nmedium shot\nwide shot",
+        false,
+        0
+      ],
+      "title": "Pool: 02_camera_distance"
+    },
+    {
+      "id": 108,
+      "type": "SeededTextPool",
+      "pos": [
+        1900,
+        800
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 108,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 51
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            140
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "eye level\nfrom below\nfrom above\nside view",
+        false,
+        0
+      ],
+      "title": "Pool: 02_camera_angle"
+    },
+    {
+      "id": 140,
+      "type": "TagJoin",
+      "pos": [
+        7300,
+        800
+      ],
+      "size": [
+        280,
+        140
+      ],
+      "flags": {},
+      "order": 140,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "tag_0",
+          "type": "STRING",
+          "link": 52
+        },
+        {
+          "name": "tag_1",
+          "type": "STRING",
+          "link": 53
+        },
+        {
+          "name": "tag_2",
+          "type": "STRING",
+          "link": 54
+        },
+        {
+          "name": "tag_3",
+          "type": "STRING",
+          "link": 55
+        },
+        {
+          "name": "tag_4",
+          "type": "STRING",
+          "link": 56
+        }
+      ],
+      "outputs": [
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "links": [
+            197
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "TagJoin"
+      },
+      "widgets_values": [
+        ""
+      ],
+      "title": "Ordered Tag Join"
+    },
+    {
+      "id": 96,
+      "type": "SeededTextPool",
+      "pos": [
+        1000,
+        800
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 96,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            133
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": [
+            49,
+            50,
+            51,
+            57,
+            58,
+            59,
+            60,
+            61,
+            62,
+            63,
+            64,
+            70,
+            71,
+            72,
+            73,
+            74,
+            75,
+            82,
+            85,
+            86,
+            87,
+            88,
+            89,
+            90,
+            91,
+            92,
+            93,
+            94,
+            95,
+            96,
+            97,
+            98,
+            99,
+            100,
+            101,
+            102,
+            103,
+            104,
+            105,
+            106,
+            107,
+            108,
+            109,
+            110,
+            111,
+            112,
+            113,
+            114,
+            115,
+            116,
+            117,
+            118,
+            119,
+            120,
+            121,
+            122,
+            123,
+            124,
+            125,
+            126,
+            127,
+            128,
+            129,
+            130,
+            131,
+            132,
+            185,
+            187
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "[empty]\nmasterpiece\nbest quality\nhigh quality",
+        false,
+        42
+      ],
+      "title": "Pool: 01_quality"
+    },
+    {
+      "id": 97,
+      "type": "SeededTextPool",
+      "pos": [
+        600,
+        1250
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 97,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 57
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            134
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "[empty]\nvery aesthetic\ncinematic\nprofessional illustration",
+        false,
+        0
+      ],
+      "title": "Pool: 01_rating"
+    },
+    {
+      "id": 98,
+      "type": "SeededTextPool",
+      "pos": [
+        1000,
+        1250
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 98,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 58
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            135
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "[empty]\nhighly detailed\ndepth of field\nsoft focus",
+        false,
+        0
+      ],
+      "title": "Pool: 01_detail"
+    },
+    {
+      "id": 99,
+      "type": "SeededTextPool",
+      "pos": [
+        600,
+        1700
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 99,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 59
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            136
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "[empty]\nsoft pastel colors\nvibrant colors\nwarm color palette",
+        false,
+        0
+      ],
+      "title": "Pool: 01_palette"
+    },
+    {
+      "id": 150,
+      "type": "SeededTextPool",
+      "pos": [
+        1500,
+        1250
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 150,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 60
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            65
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "lying\nstanding\nsitting\nkneeling\ncrouching",
+        false,
+        0
+      ],
+      "title": "Pool: Solo / Pose"
+    },
+    {
+      "id": 151,
+      "type": "SeededTextPool",
+      "pos": [
+        1900,
+        1250
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 151,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 61
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            66
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "walking\nrunning\nstretching\ndancing\nresting",
+        false,
+        0
+      ],
+      "title": "Pool: Solo / Action"
+    },
+    {
+      "id": 152,
+      "type": "SeededTextPool",
+      "pos": [
+        1500,
+        1700
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 152,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 62
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            67
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "hand on hip\nhands clasped\nhands behind back\none hand raised\ntouching hair",
+        false,
+        0
+      ],
+      "title": "Pool: Solo / Hand Position"
+    },
+    {
+      "id": 153,
+      "type": "SeededTextPool",
+      "pos": [
+        1900,
+        1700
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 153,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 63
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            68
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "legs apart\ncrossed legs\none leg raised\nlegs together\nbent knees",
+        false,
+        0
+      ],
+      "title": "Pool: Solo / Leg Placement"
+    },
+    {
+      "id": 154,
+      "type": "SeededTextPool",
+      "pos": [
+        1500,
+        2150
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 154,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 64
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            69
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "looking at viewer\nlooking to the side\nlooking away\nlooking up\nlooking down",
+        false,
+        0
+      ],
+      "title": "Pool: Solo / Gaze Direction"
+    },
+    {
+      "id": 155,
+      "type": "TagJoin",
+      "pos": [
+        2350,
+        800
+      ],
+      "size": [
+        280,
+        140
+      ],
+      "flags": {},
+      "order": 155,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "tag_0",
+          "type": "STRING",
+          "link": 65
+        },
+        {
+          "name": "tag_1",
+          "type": "STRING",
+          "link": 66
+        },
+        {
+          "name": "tag_2",
+          "type": "STRING",
+          "link": 67
+        },
+        {
+          "name": "tag_3",
+          "type": "STRING",
+          "link": 68
+        },
+        {
+          "name": "tag_4",
+          "type": "STRING",
+          "link": 69
+        }
+      ],
+      "outputs": [
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "links": [
+            83
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "TagJoin"
+      },
+      "widgets_values": [
+        ""
+      ],
+      "title": "Solo Composition Block"
+    },
+    {
+      "id": 156,
+      "type": "SeededTextPool",
+      "pos": [
+        1900,
+        2150
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 156,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 70
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            76
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "lying\nstanding\nsitting\nkneeling\ncrouching",
+        false,
+        0
+      ],
+      "title": "Pool: Pair / Body Pose"
+    },
+    {
+      "id": 157,
+      "type": "SeededTextPool",
+      "pos": [
+        1500,
+        2600
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 157,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 71
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            77
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "face-to-face\nback-to-back\nbelly-to-belly\ncheek-to-cheek\neye contact\nshoulder-to-shoulder\nside-by-side",
+        false,
+        0
+      ],
+      "title": "Pool: Pair / Relative Pose"
+    },
+    {
+      "id": 158,
+      "type": "SeededTextPool",
+      "pos": [
+        1900,
+        2600
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 158,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 72
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            78
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "hugging\nkissing\ndancing\nwalking together\ntalking\nfighting",
+        false,
+        0
+      ],
+      "title": "Pool: Pair / Action"
+    },
+    {
+      "id": 159,
+      "type": "SeededTextPool",
+      "pos": [
+        1500,
+        3050
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 159,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 73
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            79
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "holding hands\narms around each other\nhand on shoulder\nhand on waist\ninterlocked fingers",
+        false,
+        0
+      ],
+      "title": "Pool: Pair / Hand Interaction"
+    },
+    {
+      "id": 160,
+      "type": "SeededTextPool",
+      "pos": [
+        1900,
+        3050
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 160,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 74
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            80
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "intertwined legs\nlegs touching\nmirrored stance\none leg raised\nstaggered stance",
+        false,
+        0
+      ],
+      "title": "Pool: Pair / Leg Placement"
+    },
+    {
+      "id": 161,
+      "type": "SeededTextPool",
+      "pos": [
+        1500,
+        3500
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 161,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 75
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            81
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "looking at viewer\nlooking at each other\nlooking in the same direction\nlooking away from each other\nlooking to the side",
+        false,
+        0
+      ],
+      "title": "Pool: Pair / Gaze Direction"
+    },
+    {
+      "id": 162,
+      "type": "TagJoin",
+      "pos": [
+        2350,
+        1200
+      ],
+      "size": [
+        280,
+        140
+      ],
+      "flags": {},
+      "order": 162,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "tag_0",
+          "type": "STRING",
+          "link": 76
+        },
+        {
+          "name": "tag_1",
+          "type": "STRING",
+          "link": 77
+        },
+        {
+          "name": "tag_2",
+          "type": "STRING",
+          "link": 78
+        },
+        {
+          "name": "tag_3",
+          "type": "STRING",
+          "link": 79
+        },
+        {
+          "name": "tag_4",
+          "type": "STRING",
+          "link": 80
+        },
+        {
+          "name": "tag_5",
+          "type": "STRING",
+          "link": 81
+        }
+      ],
+      "outputs": [
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "links": [
+            84
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "TagJoin"
+      },
+      "widgets_values": [
+        ""
+      ],
+      "title": "Pair Composition Block"
+    },
+    {
+      "id": 163,
+      "type": "OneTwoPersonToggle",
+      "pos": [
+        2350,
+        1600
+      ],
+      "size": [
+        280,
+        160
+      ],
+      "flags": {},
+      "order": 163,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 82
+        },
+        {
+          "name": "one_character",
+          "type": "STRING",
+          "link": 83
+        },
+        {
+          "name": "two_or_more_characters",
+          "type": "STRING",
+          "link": 84
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            138
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "OneTwoPersonToggle"
+      },
+      "widgets_values": [
+        "1girl",
+        "2girls",
+        0
+      ],
+      "title": "One/Two Person: Composition"
+    },
+    {
+      "id": 210,
+      "type": "SeededTextPool",
+      "pos": [
+        2800,
+        800
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 210,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 85
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            141
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "alice\nbeatrice\nceleste\ndiana",
+        false,
+        0
+      ],
+      "title": "Pool: Character 1 / Character Name"
+    },
+    {
+      "id": 211,
+      "type": "SeededTextPool",
+      "pos": [
+        3200,
+        800
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 211,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 86
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            142
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "wlop\nsakimichan\nredjuice\nfuzichoco",
+        false,
+        0
+      ],
+      "title": "Pool: Character 1 / Artist Name"
+    },
+    {
+      "id": 212,
+      "type": "SeededTextPool",
+      "pos": [
+        2800,
+        1250
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 212,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 87
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            143
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "black hair\nblonde hair\nbrown hair\npink hair\nsilver hair",
+        false,
+        0
+      ],
+      "title": "Pool: Character 1 / Hair Color"
+    },
+    {
+      "id": 213,
+      "type": "SeededTextPool",
+      "pos": [
+        3200,
+        1250
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 213,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 88
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            144
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "short hair\nmedium hair\nlong hair\nshoulder-length hair",
+        false,
+        0
+      ],
+      "title": "Pool: Character 1 / Hair Length"
+    },
+    {
+      "id": 214,
+      "type": "SeededTextPool",
+      "pos": [
+        2800,
+        1700
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 214,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 89
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            145
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "straight hair\nponytail\ntwintails\nbraided hair\nmessy hair",
+        false,
+        0
+      ],
+      "title": "Pool: Character 1 / Hair Style"
+    },
+    {
+      "id": 215,
+      "type": "SeededTextPool",
+      "pos": [
+        3200,
+        1700
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 215,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 90
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            146
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "blue eyes\ngreen eyes\namber eyes\nbrown eyes\nviolet eyes",
+        false,
+        0
+      ],
+      "title": "Pool: Character 1 / Eye Color"
+    },
+    {
+      "id": 216,
+      "type": "SeededTextPool",
+      "pos": [
+        2800,
+        2150
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 216,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 91
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            147
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "round eyes\nnarrow eyes\nsleepy eyes\nupturned eyes",
+        false,
+        0
+      ],
+      "title": "Pool: Character 1 / Eye Shape"
+    },
+    {
+      "id": 217,
+      "type": "SeededTextPool",
+      "pos": [
+        3200,
+        2150
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 217,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 92
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            148
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "dilated pupils\nheart-shaped pupils\nstar-shaped pupils\nnormal pupils",
+        false,
+        0
+      ],
+      "title": "Pool: Character 1 / Pupils"
+    },
+    {
+      "id": 218,
+      "type": "SeededTextPool",
+      "pos": [
+        2800,
+        2600
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 218,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 93
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            149
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "smile\nblushing\nplayful smirk\ngentle expression\nserious expression",
+        false,
+        0
+      ],
+      "title": "Pool: Character 1 / Expression"
+    },
+    {
+      "id": 219,
+      "type": "SeededTextPool",
+      "pos": [
+        3200,
+        2600
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 219,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 94
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            150
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "slender body\nathletic body\nsoft body\ncurvy body",
+        false,
+        0
+      ],
+      "title": "Pool: Character 1 / Body Type"
+    },
+    {
+      "id": 220,
+      "type": "SeededTextPool",
+      "pos": [
+        2800,
+        3050
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 220,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 95
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            151
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "smooth skin\nfreckles\ntan skin\npale skin",
+        false,
+        0
+      ],
+      "title": "Pool: Character 1 / Skin Detail"
+    },
+    {
+      "id": 221,
+      "type": "SeededTextPool",
+      "pos": [
+        3200,
+        3050
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 221,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 96
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            152
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "small breasts\nmedium breasts\nlarge breasts\nflat chest",
+        false,
+        0
+      ],
+      "title": "Pool: Character 1 / Bust"
+    },
+    {
+      "id": 222,
+      "type": "SeededTextPool",
+      "pos": [
+        2800,
+        3500
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 222,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 97
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            153
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "cowboy vest\nsailor uniform\ncasual jacket\nsummer blouse",
+        false,
+        0
+      ],
+      "title": "Pool: Character 1 / Torso Clothes"
+    },
+    {
+      "id": 223,
+      "type": "SeededTextPool",
+      "pos": [
+        3200,
+        3500
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 223,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 98
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            154
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "denim shorts\npleated skirt\nlong pants\nleggings",
+        false,
+        0
+      ],
+      "title": "Pool: Character 1 / Leg Clothes"
+    },
+    {
+      "id": 224,
+      "type": "SeededTextPool",
+      "pos": [
+        2800,
+        3950
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 224,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 99
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            155
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "bra\nlace underwear\nbikini\nmatching underwear",
+        false,
+        0
+      ],
+      "title": "Pool: Character 1 / Underwear"
+    },
+    {
+      "id": 225,
+      "type": "SeededTextPool",
+      "pos": [
+        3200,
+        3950
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 225,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 100
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            156
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "gloves\nwristband\nbracelet\nfingerless gloves",
+        false,
+        0
+      ],
+      "title": "Pool: Character 1 / Hand Accessories"
+    },
+    {
+      "id": 226,
+      "type": "SeededTextPool",
+      "pos": [
+        2800,
+        4400
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 226,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 101
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            157
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "thigh straps\nanklet\nleg warmers\nknee pads",
+        false,
+        0
+      ],
+      "title": "Pool: Character 1 / Leg Accessories"
+    },
+    {
+      "id": 227,
+      "type": "SeededTextPool",
+      "pos": [
+        3200,
+        4400
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 227,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 102
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            158
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "belt\nchest harness\nshoulder bag\nbrooch",
+        false,
+        0
+      ],
+      "title": "Pool: Character 1 / Torso Accessories"
+    },
+    {
+      "id": 228,
+      "type": "SeededTextPool",
+      "pos": [
+        2800,
+        4850
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 228,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 103
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            159
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "cowboy hat\nberet\nsun hat\nhair ribbon",
+        false,
+        0
+      ],
+      "title": "Pool: Character 1 / Headwear"
+    },
+    {
+      "id": 229,
+      "type": "SeededTextPool",
+      "pos": [
+        3200,
+        4850
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 229,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 104
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            160
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "glasses\nsunglasses\nmonocle\ngoggles",
+        false,
+        0
+      ],
+      "title": "Pool: Character 1 / Eyewear"
+    },
+    {
+      "id": 230,
+      "type": "SeededTextPool",
+      "pos": [
+        2800,
+        5300
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 230,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 105
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            161
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "necklace\nchoker\nscarf\nbolo tie",
+        false,
+        0
+      ],
+      "title": "Pool: Character 1 / Neckwear"
+    },
+    {
+      "id": 231,
+      "type": "SeededTextPool",
+      "pos": [
+        3200,
+        5300
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 231,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 106
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            162
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "cowboy boots\nhigh heels\nsneakers\nbarefoot",
+        false,
+        0
+      ],
+      "title": "Pool: Character 1 / Footwear"
+    },
+    {
+      "id": 240,
+      "type": "SeededTextPool",
+      "pos": [
+        3800,
+        800
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 240,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 107
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            163
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "elena\nfiona\ngabrielle\nhelena",
+        false,
+        0
+      ],
+      "title": "Pool: Character 2 / Character Name"
+    },
+    {
+      "id": 241,
+      "type": "SeededTextPool",
+      "pos": [
+        4200,
+        800
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 241,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 108
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            164
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "wlop\nsakimichan\nredjuice\nfuzichoco",
+        false,
+        0
+      ],
+      "title": "Pool: Character 2 / Artist Name"
+    },
+    {
+      "id": 242,
+      "type": "SeededTextPool",
+      "pos": [
+        3800,
+        1250
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 242,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 109
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            165
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "black hair\nblonde hair\nbrown hair\nred hair\nsilver hair",
+        false,
+        0
+      ],
+      "title": "Pool: Character 2 / Hair Color"
+    },
+    {
+      "id": 243,
+      "type": "SeededTextPool",
+      "pos": [
+        4200,
+        1250
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 243,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 110
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            166
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "short hair\nmedium hair\nlong hair\nshoulder-length hair",
+        false,
+        0
+      ],
+      "title": "Pool: Character 2 / Hair Length"
+    },
+    {
+      "id": 244,
+      "type": "SeededTextPool",
+      "pos": [
+        3800,
+        1700
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 244,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 111
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            167
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "straight hair\nponytail\ntwintails\nbraided hair\nmessy hair",
+        false,
+        0
+      ],
+      "title": "Pool: Character 2 / Hair Style"
+    },
+    {
+      "id": 245,
+      "type": "SeededTextPool",
+      "pos": [
+        4200,
+        1700
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 245,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 112
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            168
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "blue eyes\ngreen eyes\namber eyes\nbrown eyes\nviolet eyes",
+        false,
+        0
+      ],
+      "title": "Pool: Character 2 / Eye Color"
+    },
+    {
+      "id": 246,
+      "type": "SeededTextPool",
+      "pos": [
+        3800,
+        2150
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 246,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 113
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            169
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "round eyes\nnarrow eyes\nsleepy eyes\nupturned eyes",
+        false,
+        0
+      ],
+      "title": "Pool: Character 2 / Eye Shape"
+    },
+    {
+      "id": 247,
+      "type": "SeededTextPool",
+      "pos": [
+        4200,
+        2150
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 247,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 114
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            170
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "dilated pupils\nheart-shaped pupils\nstar-shaped pupils\nnormal pupils",
+        false,
+        0
+      ],
+      "title": "Pool: Character 2 / Pupils"
+    },
+    {
+      "id": 248,
+      "type": "SeededTextPool",
+      "pos": [
+        3800,
+        2600
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 248,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 115
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            171
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "smile\nblushing\nplayful smirk\ngentle expression\nserious expression",
+        false,
+        0
+      ],
+      "title": "Pool: Character 2 / Expression"
+    },
+    {
+      "id": 249,
+      "type": "SeededTextPool",
+      "pos": [
+        4200,
+        2600
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 249,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 116
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            172
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "slender body\nathletic body\nsoft body\ncurvy body",
+        false,
+        0
+      ],
+      "title": "Pool: Character 2 / Body Type"
+    },
+    {
+      "id": 250,
+      "type": "SeededTextPool",
+      "pos": [
+        3800,
+        3050
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 250,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 117
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            173
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "smooth skin\nfreckles\ntan skin\npale skin",
+        false,
+        0
+      ],
+      "title": "Pool: Character 2 / Skin Detail"
+    },
+    {
+      "id": 251,
+      "type": "SeededTextPool",
+      "pos": [
+        4200,
+        3050
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 251,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 118
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            174
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "small breasts\nmedium breasts\nlarge breasts\nflat chest",
+        false,
+        0
+      ],
+      "title": "Pool: Character 2 / Bust"
+    },
+    {
+      "id": 252,
+      "type": "SeededTextPool",
+      "pos": [
+        3800,
+        3500
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 252,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 119
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            175
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "cowboy vest\nsailor uniform\ncasual jacket\nsummer blouse",
+        false,
+        0
+      ],
+      "title": "Pool: Character 2 / Torso Clothes"
+    },
+    {
+      "id": 253,
+      "type": "SeededTextPool",
+      "pos": [
+        4200,
+        3500
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 253,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 120
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            176
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "denim shorts\npleated skirt\nlong pants\nleggings",
+        false,
+        0
+      ],
+      "title": "Pool: Character 2 / Leg Clothes"
+    },
+    {
+      "id": 254,
+      "type": "SeededTextPool",
+      "pos": [
+        3800,
+        3950
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 254,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 121
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            177
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "bra\nlace underwear\nbikini\nmatching underwear",
+        false,
+        0
+      ],
+      "title": "Pool: Character 2 / Underwear"
+    },
+    {
+      "id": 255,
+      "type": "SeededTextPool",
+      "pos": [
+        4200,
+        3950
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 255,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 122
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            178
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "gloves\nwristband\nbracelet\nfingerless gloves",
+        false,
+        0
+      ],
+      "title": "Pool: Character 2 / Hand Accessories"
+    },
+    {
+      "id": 256,
+      "type": "SeededTextPool",
+      "pos": [
+        3800,
+        4400
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 256,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 123
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            179
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "thigh straps\nanklet\nleg warmers\nknee pads",
+        false,
+        0
+      ],
+      "title": "Pool: Character 2 / Leg Accessories"
+    },
+    {
+      "id": 257,
+      "type": "SeededTextPool",
+      "pos": [
+        4200,
+        4400
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 257,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 124
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            180
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "belt\nchest harness\nshoulder bag\nbrooch",
+        false,
+        0
+      ],
+      "title": "Pool: Character 2 / Torso Accessories"
+    },
+    {
+      "id": 258,
+      "type": "SeededTextPool",
+      "pos": [
+        3800,
+        4850
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 258,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 125
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            181
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "cowboy hat\nberet\nsun hat\nhair ribbon",
+        false,
+        0
+      ],
+      "title": "Pool: Character 2 / Headwear"
+    },
+    {
+      "id": 259,
+      "type": "SeededTextPool",
+      "pos": [
+        4200,
+        4850
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 259,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 126
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            182
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "glasses\nsunglasses\nmonocle\ngoggles",
+        false,
+        0
+      ],
+      "title": "Pool: Character 2 / Eyewear"
+    },
+    {
+      "id": 260,
+      "type": "SeededTextPool",
+      "pos": [
+        3800,
+        5300
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 260,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 127
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            183
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "necklace\nchoker\nscarf\nbolo tie",
+        false,
+        0
+      ],
+      "title": "Pool: Character 2 / Neckwear"
+    },
+    {
+      "id": 261,
+      "type": "SeededTextPool",
+      "pos": [
+        4200,
+        5300
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 261,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 128
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            184
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "cowboy boots\nhigh heels\nsneakers\nbarefoot",
+        false,
+        0
+      ],
+      "title": "Pool: Character 2 / Footwear"
+    },
+    {
+      "id": 270,
+      "type": "SeededTextPool",
+      "pos": [
+        5100,
+        4000
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 270,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 129
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            193
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "saloon\nforest\nbeach\ncity street\nbedroom",
+        false,
+        0
+      ],
+      "title": "Pool: Scene / Background"
+    },
+    {
+      "id": 271,
+      "type": "SeededTextPool",
+      "pos": [
+        5500,
+        4000
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 271,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 130
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            194
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "bar counter\nwooden chair\nflower vase\nlantern\nwindow",
+        false,
+        0
+      ],
+      "title": "Pool: Scene / Scene Objects"
+    },
+    {
+      "id": 272,
+      "type": "SeededTextPool",
+      "pos": [
+        5100,
+        4450
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 272,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 131
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            195
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "warm lighting\nrim lighting\nvolumetric lighting\nsoft lighting\nneon lighting",
+        false,
+        0
+      ],
+      "title": "Pool: Scene / Lighting"
+    },
+    {
+      "id": 273,
+      "type": "SeededTextPool",
+      "pos": [
+        5500,
+        4450
+      ],
+      "size": [
+        320,
+        280
+      ],
+      "flags": {},
+      "order": 273,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 132
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            196
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SeededTextPool"
+      },
+      "widgets_values": [
+        "dust particles\nbloom\nlens flare\nmist\nrain",
+        false,
+        0
+      ],
+      "title": "Pool: Scene / Effects"
+    },
+    {
+      "id": 280,
+      "type": "TagJoin",
+      "pos": [
+        4800,
+        800
+      ],
+      "size": [
+        280,
+        140
+      ],
+      "flags": {},
+      "order": 280,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "tag_0",
+          "type": "STRING",
+          "link": 133
+        },
+        {
+          "name": "tag_1",
+          "type": "STRING",
+          "link": 134
+        },
+        {
+          "name": "tag_2",
+          "type": "STRING",
+          "link": 135
+        },
+        {
+          "name": "tag_3",
+          "type": "STRING",
+          "link": 136
+        },
+        {
+          "name": "tag_4",
+          "type": "STRING",
+          "link": 137
+        }
+      ],
+      "outputs": [
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "links": [
+            52
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "TagJoin"
+      },
+      "widgets_values": [
+        ""
+      ],
+      "title": "01 \u00c2\u00b7 Quality / Meta / Rating"
+    },
+    {
+      "id": 281,
+      "type": "TagJoin",
+      "pos": [
+        4800,
+        2050
+      ],
+      "size": [
+        280,
+        140
+      ],
+      "flags": {},
+      "order": 281,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "tag_0",
+          "type": "STRING",
+          "link": 138
+        },
+        {
+          "name": "tag_1",
+          "type": "STRING",
+          "link": 139
+        },
+        {
+          "name": "tag_2",
+          "type": "STRING",
+          "link": 140
+        }
+      ],
+      "outputs": [
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "links": [
+            53
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "TagJoin"
+      },
+      "widgets_values": [
+        ""
+      ],
+      "title": "02 \u00c2\u00b7 Composition"
+    },
+    {
+      "id": 282,
+      "type": "TagJoin",
+      "pos": [
+        5300,
+        800
+      ],
+      "size": [
+        280,
+        140
+      ],
+      "flags": {},
+      "order": 282,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "tag_0",
+          "type": "STRING",
+          "link": 141
+        },
+        {
+          "name": "tag_1",
+          "type": "STRING",
+          "link": 142
+        },
+        {
+          "name": "tag_2",
+          "type": "STRING",
+          "link": 143
+        },
+        {
+          "name": "tag_3",
+          "type": "STRING",
+          "link": 144
+        },
+        {
+          "name": "tag_4",
+          "type": "STRING",
+          "link": 145
+        },
+        {
+          "name": "tag_5",
+          "type": "STRING",
+          "link": 146
+        },
+        {
+          "name": "tag_6",
+          "type": "STRING",
+          "link": 147
+        },
+        {
+          "name": "tag_7",
+          "type": "STRING",
+          "link": 148
+        },
+        {
+          "name": "tag_8",
+          "type": "STRING",
+          "link": 149
+        },
+        {
+          "name": "tag_9",
+          "type": "STRING",
+          "link": 150
+        },
+        {
+          "name": "tag_10",
+          "type": "STRING",
+          "link": 151
+        },
+        {
+          "name": "tag_11",
+          "type": "STRING",
+          "link": 152
+        }
+      ],
+      "outputs": [
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "links": [
+            189
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "TagJoin"
+      },
+      "widgets_values": [
+        ""
+      ],
+      "title": "03 \u00c2\u00b7 Character 1 Body Features"
+    },
+    {
+      "id": 283,
+      "type": "TagJoin",
+      "pos": [
+        5300,
+        2050
+      ],
+      "size": [
+        280,
+        140
+      ],
+      "flags": {},
+      "order": 283,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "tag_0",
+          "type": "STRING",
+          "link": 153
+        },
+        {
+          "name": "tag_1",
+          "type": "STRING",
+          "link": 154
+        },
+        {
+          "name": "tag_2",
+          "type": "STRING",
+          "link": 155
+        },
+        {
+          "name": "tag_3",
+          "type": "STRING",
+          "link": 156
+        },
+        {
+          "name": "tag_4",
+          "type": "STRING",
+          "link": 157
+        },
+        {
+          "name": "tag_5",
+          "type": "STRING",
+          "link": 158
+        },
+        {
+          "name": "tag_6",
+          "type": "STRING",
+          "link": 159
+        },
+        {
+          "name": "tag_7",
+          "type": "STRING",
+          "link": 160
+        },
+        {
+          "name": "tag_8",
+          "type": "STRING",
+          "link": 161
+        },
+        {
+          "name": "tag_9",
+          "type": "STRING",
+          "link": 162
+        }
+      ],
+      "outputs": [
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "links": [
+            191
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "TagJoin"
+      },
+      "widgets_values": [
+        ""
+      ],
+      "title": "04 \u00c2\u00b7 Character 1 Clothes / Accessories"
+    },
+    {
+      "id": 284,
+      "type": "TagJoin",
+      "pos": [
+        5800,
+        800
+      ],
+      "size": [
+        280,
+        140
+      ],
+      "flags": {},
+      "order": 284,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "tag_0",
+          "type": "STRING",
+          "link": 163
+        },
+        {
+          "name": "tag_1",
+          "type": "STRING",
+          "link": 164
+        },
+        {
+          "name": "tag_2",
+          "type": "STRING",
+          "link": 165
+        },
+        {
+          "name": "tag_3",
+          "type": "STRING",
+          "link": 166
+        },
+        {
+          "name": "tag_4",
+          "type": "STRING",
+          "link": 167
+        },
+        {
+          "name": "tag_5",
+          "type": "STRING",
+          "link": 168
+        },
+        {
+          "name": "tag_6",
+          "type": "STRING",
+          "link": 169
+        },
+        {
+          "name": "tag_7",
+          "type": "STRING",
+          "link": 170
+        },
+        {
+          "name": "tag_8",
+          "type": "STRING",
+          "link": 171
+        },
+        {
+          "name": "tag_9",
+          "type": "STRING",
+          "link": 172
+        },
+        {
+          "name": "tag_10",
+          "type": "STRING",
+          "link": 173
+        },
+        {
+          "name": "tag_11",
+          "type": "STRING",
+          "link": 174
+        }
+      ],
+      "outputs": [
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "links": [
+            186
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "TagJoin"
+      },
+      "widgets_values": [
+        ""
+      ],
+      "title": "03 \u00c2\u00b7 Character 2 Body Features"
+    },
+    {
+      "id": 285,
+      "type": "TagJoin",
+      "pos": [
+        5800,
+        2050
+      ],
+      "size": [
+        280,
+        140
+      ],
+      "flags": {},
+      "order": 285,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "tag_0",
+          "type": "STRING",
+          "link": 175
+        },
+        {
+          "name": "tag_1",
+          "type": "STRING",
+          "link": 176
+        },
+        {
+          "name": "tag_2",
+          "type": "STRING",
+          "link": 177
+        },
+        {
+          "name": "tag_3",
+          "type": "STRING",
+          "link": 178
+        },
+        {
+          "name": "tag_4",
+          "type": "STRING",
+          "link": 179
+        },
+        {
+          "name": "tag_5",
+          "type": "STRING",
+          "link": 180
+        },
+        {
+          "name": "tag_6",
+          "type": "STRING",
+          "link": 181
+        },
+        {
+          "name": "tag_7",
+          "type": "STRING",
+          "link": 182
+        },
+        {
+          "name": "tag_8",
+          "type": "STRING",
+          "link": 183
+        },
+        {
+          "name": "tag_9",
+          "type": "STRING",
+          "link": 184
+        }
+      ],
+      "outputs": [
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "links": [
+            188
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "TagJoin"
+      },
+      "widgets_values": [
+        ""
+      ],
+      "title": "04 \u00c2\u00b7 Character 2 Clothes / Accessories"
+    },
+    {
+      "id": 286,
+      "type": "OneTwoPersonToggle",
+      "pos": [
+        4600,
+        5000
+      ],
+      "size": [
+        280,
+        160
+      ],
+      "flags": {},
+      "order": 286,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 185
+        },
+        {
+          "name": "two_or_more_characters",
+          "type": "STRING",
+          "link": 186
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            190
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "OneTwoPersonToggle"
+      },
+      "widgets_values": [
+        "",
+        "",
+        0
+      ],
+      "title": "Gate: Character 2 Body Features"
+    },
+    {
+      "id": 287,
+      "type": "OneTwoPersonToggle",
+      "pos": [
+        4600,
+        5300
+      ],
+      "size": [
+        280,
+        160
+      ],
+      "flags": {},
+      "order": 287,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 187
+        },
+        {
+          "name": "two_or_more_characters",
+          "type": "STRING",
+          "link": 188
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            192
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": []
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "OneTwoPersonToggle"
+      },
+      "widgets_values": [
+        "",
+        "",
+        0
+      ],
+      "title": "Gate: Character 2 Clothes / Accessories"
+    },
+    {
+      "id": 288,
+      "type": "TagJoin",
+      "pos": [
+        6300,
+        800
+      ],
+      "size": [
+        280,
+        140
+      ],
+      "flags": {},
+      "order": 288,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "tag_0",
+          "type": "STRING",
+          "link": 189
+        },
+        {
+          "name": "tag_1",
+          "type": "STRING",
+          "link": 190
+        }
+      ],
+      "outputs": [
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "links": [
+            54
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "TagJoin"
+      },
+      "widgets_values": [
+        ""
+      ],
+      "title": "03 \u00c2\u00b7 Body Features"
+    },
+    {
+      "id": 289,
+      "type": "TagJoin",
+      "pos": [
+        6300,
+        2050
+      ],
+      "size": [
+        280,
+        140
+      ],
+      "flags": {},
+      "order": 289,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "tag_0",
+          "type": "STRING",
+          "link": 191
+        },
+        {
+          "name": "tag_1",
+          "type": "STRING",
+          "link": 192
+        }
+      ],
+      "outputs": [
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "links": [
+            55
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "TagJoin"
+      },
+      "widgets_values": [
+        ""
+      ],
+      "title": "04 \u00c2\u00b7 Clothes / Accessories"
+    },
+    {
+      "id": 290,
+      "type": "TagJoin",
+      "pos": [
+        6800,
+        800
+      ],
+      "size": [
+        280,
+        140
+      ],
+      "flags": {},
+      "order": 290,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "tag_0",
+          "type": "STRING",
+          "link": 193
+        },
+        {
+          "name": "tag_1",
+          "type": "STRING",
+          "link": 194
+        },
+        {
+          "name": "tag_2",
+          "type": "STRING",
+          "link": 195
+        },
+        {
+          "name": "tag_3",
+          "type": "STRING",
+          "link": 196
+        }
+      ],
+      "outputs": [
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "links": [
+            56
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "TagJoin"
+      },
+      "widgets_values": [
+        ""
+      ],
+      "title": "05 \u00c2\u00b7 Background"
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      1,
+      2,
+      0,
+      "CLIP"
+    ],
+    [
+      2,
+      2,
+      0,
+      3,
+      1,
+      "CLIP"
+    ],
+    [
+      3,
+      2,
+      0,
+      4,
+      0,
+      "CLIP"
+    ],
+    [
+      8,
+      7,
+      0,
+      8,
+      0,
+      "IMAGE"
+    ],
+    [
+      10,
+      1,
+      2,
+      7,
+      1,
+      "VAE"
+    ],
+    [
+      36,
+      7,
+      0,
+      18,
+      0,
+      "IMAGE"
+    ],
+    [
+      42,
+      1,
+      0,
+      20,
+      0,
+      "MODEL"
+    ],
+    [
+      43,
+      3,
+      0,
+      20,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      44,
+      4,
+      0,
+      20,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      45,
+      6,
+      0,
+      20,
+      3,
+      "LATENT"
+    ],
+    [
+      48,
+      20,
+      0,
+      7,
+      0,
+      "LATENT"
+    ],
+    [
+      49,
+      96,
+      1,
+      101,
+      0,
+      "INT"
+    ],
+    [
+      50,
+      96,
+      1,
+      107,
+      0,
+      "INT"
+    ],
+    [
+      51,
+      96,
+      1,
+      108,
+      0,
+      "INT"
+    ],
+    [
+      52,
+      280,
+      0,
+      140,
+      0,
+      "STRING"
+    ],
+    [
+      53,
+      281,
+      0,
+      140,
+      1,
+      "STRING"
+    ],
+    [
+      54,
+      288,
+      0,
+      140,
+      2,
+      "STRING"
+    ],
+    [
+      55,
+      289,
+      0,
+      140,
+      3,
+      "STRING"
+    ],
+    [
+      56,
+      290,
+      0,
+      140,
+      4,
+      "STRING"
+    ],
+    [
+      57,
+      96,
+      1,
+      97,
+      0,
+      "INT"
+    ],
+    [
+      58,
+      96,
+      1,
+      98,
+      0,
+      "INT"
+    ],
+    [
+      59,
+      96,
+      1,
+      99,
+      0,
+      "INT"
+    ],
+    [
+      60,
+      96,
+      1,
+      150,
+      0,
+      "INT"
+    ],
+    [
+      61,
+      96,
+      1,
+      151,
+      0,
+      "INT"
+    ],
+    [
+      62,
+      96,
+      1,
+      152,
+      0,
+      "INT"
+    ],
+    [
+      63,
+      96,
+      1,
+      153,
+      0,
+      "INT"
+    ],
+    [
+      64,
+      96,
+      1,
+      154,
+      0,
+      "INT"
+    ],
+    [
+      65,
+      150,
+      0,
+      155,
+      0,
+      "STRING"
+    ],
+    [
+      66,
+      151,
+      0,
+      155,
+      1,
+      "STRING"
+    ],
+    [
+      67,
+      152,
+      0,
+      155,
+      2,
+      "STRING"
+    ],
+    [
+      68,
+      153,
+      0,
+      155,
+      3,
+      "STRING"
+    ],
+    [
+      69,
+      154,
+      0,
+      155,
+      4,
+      "STRING"
+    ],
+    [
+      70,
+      96,
+      1,
+      156,
+      0,
+      "INT"
+    ],
+    [
+      71,
+      96,
+      1,
+      157,
+      0,
+      "INT"
+    ],
+    [
+      72,
+      96,
+      1,
+      158,
+      0,
+      "INT"
+    ],
+    [
+      73,
+      96,
+      1,
+      159,
+      0,
+      "INT"
+    ],
+    [
+      74,
+      96,
+      1,
+      160,
+      0,
+      "INT"
+    ],
+    [
+      75,
+      96,
+      1,
+      161,
+      0,
+      "INT"
+    ],
+    [
+      76,
+      156,
+      0,
+      162,
+      0,
+      "STRING"
+    ],
+    [
+      77,
+      157,
+      0,
+      162,
+      1,
+      "STRING"
+    ],
+    [
+      78,
+      158,
+      0,
+      162,
+      2,
+      "STRING"
+    ],
+    [
+      79,
+      159,
+      0,
+      162,
+      3,
+      "STRING"
+    ],
+    [
+      80,
+      160,
+      0,
+      162,
+      4,
+      "STRING"
+    ],
+    [
+      81,
+      161,
+      0,
+      162,
+      5,
+      "STRING"
+    ],
+    [
+      82,
+      96,
+      1,
+      163,
+      0,
+      "INT"
+    ],
+    [
+      83,
+      155,
+      0,
+      163,
+      1,
+      "STRING"
+    ],
+    [
+      84,
+      162,
+      0,
+      163,
+      2,
+      "STRING"
+    ],
+    [
+      85,
+      96,
+      1,
+      210,
+      0,
+      "INT"
+    ],
+    [
+      86,
+      96,
+      1,
+      211,
+      0,
+      "INT"
+    ],
+    [
+      87,
+      96,
+      1,
+      212,
+      0,
+      "INT"
+    ],
+    [
+      88,
+      96,
+      1,
+      213,
+      0,
+      "INT"
+    ],
+    [
+      89,
+      96,
+      1,
+      214,
+      0,
+      "INT"
+    ],
+    [
+      90,
+      96,
+      1,
+      215,
+      0,
+      "INT"
+    ],
+    [
+      91,
+      96,
+      1,
+      216,
+      0,
+      "INT"
+    ],
+    [
+      92,
+      96,
+      1,
+      217,
+      0,
+      "INT"
+    ],
+    [
+      93,
+      96,
+      1,
+      218,
+      0,
+      "INT"
+    ],
+    [
+      94,
+      96,
+      1,
+      219,
+      0,
+      "INT"
+    ],
+    [
+      95,
+      96,
+      1,
+      220,
+      0,
+      "INT"
+    ],
+    [
+      96,
+      96,
+      1,
+      221,
+      0,
+      "INT"
+    ],
+    [
+      97,
+      96,
+      1,
+      222,
+      0,
+      "INT"
+    ],
+    [
+      98,
+      96,
+      1,
+      223,
+      0,
+      "INT"
+    ],
+    [
+      99,
+      96,
+      1,
+      224,
+      0,
+      "INT"
+    ],
+    [
+      100,
+      96,
+      1,
+      225,
+      0,
+      "INT"
+    ],
+    [
+      101,
+      96,
+      1,
+      226,
+      0,
+      "INT"
+    ],
+    [
+      102,
+      96,
+      1,
+      227,
+      0,
+      "INT"
+    ],
+    [
+      103,
+      96,
+      1,
+      228,
+      0,
+      "INT"
+    ],
+    [
+      104,
+      96,
+      1,
+      229,
+      0,
+      "INT"
+    ],
+    [
+      105,
+      96,
+      1,
+      230,
+      0,
+      "INT"
+    ],
+    [
+      106,
+      96,
+      1,
+      231,
+      0,
+      "INT"
+    ],
+    [
+      107,
+      96,
+      1,
+      240,
+      0,
+      "INT"
+    ],
+    [
+      108,
+      96,
+      1,
+      241,
+      0,
+      "INT"
+    ],
+    [
+      109,
+      96,
+      1,
+      242,
+      0,
+      "INT"
+    ],
+    [
+      110,
+      96,
+      1,
+      243,
+      0,
+      "INT"
+    ],
+    [
+      111,
+      96,
+      1,
+      244,
+      0,
+      "INT"
+    ],
+    [
+      112,
+      96,
+      1,
+      245,
+      0,
+      "INT"
+    ],
+    [
+      113,
+      96,
+      1,
+      246,
+      0,
+      "INT"
+    ],
+    [
+      114,
+      96,
+      1,
+      247,
+      0,
+      "INT"
+    ],
+    [
+      115,
+      96,
+      1,
+      248,
+      0,
+      "INT"
+    ],
+    [
+      116,
+      96,
+      1,
+      249,
+      0,
+      "INT"
+    ],
+    [
+      117,
+      96,
+      1,
+      250,
+      0,
+      "INT"
+    ],
+    [
+      118,
+      96,
+      1,
+      251,
+      0,
+      "INT"
+    ],
+    [
+      119,
+      96,
+      1,
+      252,
+      0,
+      "INT"
+    ],
+    [
+      120,
+      96,
+      1,
+      253,
+      0,
+      "INT"
+    ],
+    [
+      121,
+      96,
+      1,
+      254,
+      0,
+      "INT"
+    ],
+    [
+      122,
+      96,
+      1,
+      255,
+      0,
+      "INT"
+    ],
+    [
+      123,
+      96,
+      1,
+      256,
+      0,
+      "INT"
+    ],
+    [
+      124,
+      96,
+      1,
+      257,
+      0,
+      "INT"
+    ],
+    [
+      125,
+      96,
+      1,
+      258,
+      0,
+      "INT"
+    ],
+    [
+      126,
+      96,
+      1,
+      259,
+      0,
+      "INT"
+    ],
+    [
+      127,
+      96,
+      1,
+      260,
+      0,
+      "INT"
+    ],
+    [
+      128,
+      96,
+      1,
+      261,
+      0,
+      "INT"
+    ],
+    [
+      129,
+      96,
+      1,
+      270,
+      0,
+      "INT"
+    ],
+    [
+      130,
+      96,
+      1,
+      271,
+      0,
+      "INT"
+    ],
+    [
+      131,
+      96,
+      1,
+      272,
+      0,
+      "INT"
+    ],
+    [
+      132,
+      96,
+      1,
+      273,
+      0,
+      "INT"
+    ],
+    [
+      133,
+      96,
+      0,
+      280,
+      0,
+      "STRING"
+    ],
+    [
+      134,
+      97,
+      0,
+      280,
+      1,
+      "STRING"
+    ],
+    [
+      135,
+      98,
+      0,
+      280,
+      2,
+      "STRING"
+    ],
+    [
+      136,
+      99,
+      0,
+      280,
+      3,
+      "STRING"
+    ],
+    [
+      137,
+      101,
+      0,
+      280,
+      4,
+      "STRING"
+    ],
+    [
+      138,
+      163,
+      0,
+      281,
+      0,
+      "STRING"
+    ],
+    [
+      139,
+      107,
+      0,
+      281,
+      1,
+      "STRING"
+    ],
+    [
+      140,
+      108,
+      0,
+      281,
+      2,
+      "STRING"
+    ],
+    [
+      141,
+      210,
+      0,
+      282,
+      0,
+      "STRING"
+    ],
+    [
+      142,
+      211,
+      0,
+      282,
+      1,
+      "STRING"
+    ],
+    [
+      143,
+      212,
+      0,
+      282,
+      2,
+      "STRING"
+    ],
+    [
+      144,
+      213,
+      0,
+      282,
+      3,
+      "STRING"
+    ],
+    [
+      145,
+      214,
+      0,
+      282,
+      4,
+      "STRING"
+    ],
+    [
+      146,
+      215,
+      0,
+      282,
+      5,
+      "STRING"
+    ],
+    [
+      147,
+      216,
+      0,
+      282,
+      6,
+      "STRING"
+    ],
+    [
+      148,
+      217,
+      0,
+      282,
+      7,
+      "STRING"
+    ],
+    [
+      149,
+      218,
+      0,
+      282,
+      8,
+      "STRING"
+    ],
+    [
+      150,
+      219,
+      0,
+      282,
+      9,
+      "STRING"
+    ],
+    [
+      151,
+      220,
+      0,
+      282,
+      10,
+      "STRING"
+    ],
+    [
+      152,
+      221,
+      0,
+      282,
+      11,
+      "STRING"
+    ],
+    [
+      153,
+      222,
+      0,
+      283,
+      0,
+      "STRING"
+    ],
+    [
+      154,
+      223,
+      0,
+      283,
+      1,
+      "STRING"
+    ],
+    [
+      155,
+      224,
+      0,
+      283,
+      2,
+      "STRING"
+    ],
+    [
+      156,
+      225,
+      0,
+      283,
+      3,
+      "STRING"
+    ],
+    [
+      157,
+      226,
+      0,
+      283,
+      4,
+      "STRING"
+    ],
+    [
+      158,
+      227,
+      0,
+      283,
+      5,
+      "STRING"
+    ],
+    [
+      159,
+      228,
+      0,
+      283,
+      6,
+      "STRING"
+    ],
+    [
+      160,
+      229,
+      0,
+      283,
+      7,
+      "STRING"
+    ],
+    [
+      161,
+      230,
+      0,
+      283,
+      8,
+      "STRING"
+    ],
+    [
+      162,
+      231,
+      0,
+      283,
+      9,
+      "STRING"
+    ],
+    [
+      163,
+      240,
+      0,
+      284,
+      0,
+      "STRING"
+    ],
+    [
+      164,
+      241,
+      0,
+      284,
+      1,
+      "STRING"
+    ],
+    [
+      165,
+      242,
+      0,
+      284,
+      2,
+      "STRING"
+    ],
+    [
+      166,
+      243,
+      0,
+      284,
+      3,
+      "STRING"
+    ],
+    [
+      167,
+      244,
+      0,
+      284,
+      4,
+      "STRING"
+    ],
+    [
+      168,
+      245,
+      0,
+      284,
+      5,
+      "STRING"
+    ],
+    [
+      169,
+      246,
+      0,
+      284,
+      6,
+      "STRING"
+    ],
+    [
+      170,
+      247,
+      0,
+      284,
+      7,
+      "STRING"
+    ],
+    [
+      171,
+      248,
+      0,
+      284,
+      8,
+      "STRING"
+    ],
+    [
+      172,
+      249,
+      0,
+      284,
+      9,
+      "STRING"
+    ],
+    [
+      173,
+      250,
+      0,
+      284,
+      10,
+      "STRING"
+    ],
+    [
+      174,
+      251,
+      0,
+      284,
+      11,
+      "STRING"
+    ],
+    [
+      175,
+      252,
+      0,
+      285,
+      0,
+      "STRING"
+    ],
+    [
+      176,
+      253,
+      0,
+      285,
+      1,
+      "STRING"
+    ],
+    [
+      177,
+      254,
+      0,
+      285,
+      2,
+      "STRING"
+    ],
+    [
+      178,
+      255,
+      0,
+      285,
+      3,
+      "STRING"
+    ],
+    [
+      179,
+      256,
+      0,
+      285,
+      4,
+      "STRING"
+    ],
+    [
+      180,
+      257,
+      0,
+      285,
+      5,
+      "STRING"
+    ],
+    [
+      181,
+      258,
+      0,
+      285,
+      6,
+      "STRING"
+    ],
+    [
+      182,
+      259,
+      0,
+      285,
+      7,
+      "STRING"
+    ],
+    [
+      183,
+      260,
+      0,
+      285,
+      8,
+      "STRING"
+    ],
+    [
+      184,
+      261,
+      0,
+      285,
+      9,
+      "STRING"
+    ],
+    [
+      185,
+      96,
+      1,
+      286,
+      0,
+      "INT"
+    ],
+    [
+      186,
+      284,
+      0,
+      286,
+      2,
+      "STRING"
+    ],
+    [
+      187,
+      96,
+      1,
+      287,
+      0,
+      "INT"
+    ],
+    [
+      188,
+      285,
+      0,
+      287,
+      2,
+      "STRING"
+    ],
+    [
+      189,
+      282,
+      0,
+      288,
+      0,
+      "STRING"
+    ],
+    [
+      190,
+      286,
+      0,
+      288,
+      1,
+      "STRING"
+    ],
+    [
+      191,
+      283,
+      0,
+      289,
+      0,
+      "STRING"
+    ],
+    [
+      192,
+      287,
+      0,
+      289,
+      1,
+      "STRING"
+    ],
+    [
+      193,
+      270,
+      0,
+      290,
+      0,
+      "STRING"
+    ],
+    [
+      194,
+      271,
+      0,
+      290,
+      1,
+      "STRING"
+    ],
+    [
+      195,
+      272,
+      0,
+      290,
+      2,
+      "STRING"
+    ],
+    [
+      196,
+      273,
+      0,
+      290,
+      3,
+      "STRING"
+    ],
+    [
+      197,
+      140,
+      0,
+      3,
+      0,
+      "STRING"
+    ]
+  ],
+  "groups": [
+    {
+      "title": "01 \u00b7 Quality / meta / rating",
+      "bounding": [
+        560,
+        760,
+        1250,
+        1450
+      ],
+      "color": "#3f51b5"
+    },
+    {
+      "title": "02 \u00b7 Composition",
+      "bounding": [
+        1460,
+        760,
+        1250,
+        3500
+      ],
+      "color": "#2196f3"
+    },
+    {
+      "title": "03 \u00b7 Character 1",
+      "bounding": [
+        2760,
+        760,
+        850,
+        5200
+      ],
+      "color": "#4caf50"
+    },
+    {
+      "title": "04 \u00b7 Character 2",
+      "bounding": [
+        3760,
+        760,
+        1300,
+        5200
+      ],
+      "color": "#ff9800"
+    },
+    {
+      "title": "05 \u00b7 Scene",
+      "bounding": [
+        5060,
+        3960,
+        900,
+        1300
+      ],
+      "color": "#9c27b0"
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.7400249944260698,
+      "offset": [
+        -148.16347368065462,
+        428.477025717776
+      ]
+    },
+    "frontendVersion": "1.47.11",
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}
