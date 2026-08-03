@@ -43,6 +43,16 @@ def nonempty_text(value):
     return text if text else None
 
 
+def validate_text_input(value, input_name, node_name):
+    """Validate that a text input is non‑empty; raise ValueError with a clear message."""
+    text = nonempty_text(value)
+    if text is None:
+        raise ValueError(
+            f"{node_name}: '{input_name}' is required and must be non‑empty."
+        )
+    return text
+
+
 def process_impact_wildcards(text, seed):
     """Process a selected line with Impact Pack's exact wildcard implementation."""
     if "{" not in text and "__" not in text:
@@ -179,9 +189,8 @@ class TextPoolRouter:
 
     DESCRIPTION = (
         "Legacy router: selects input_N by index (0 → input_0, …). Dynamic sockets "
-        "like Tag Join. Empty/whitespace inputs are skipped; if the chosen slot is "
-        "empty, falls back to the first non-empty input. No seed. Prefer Seeded Input "
-        "Pick or One/Two Person Toggle for new graphs."
+        "like Tag Join. Empty/whitespace inputs cause an execution error; no fallback "
+        "to other inputs. No seed."
     )
 
     @classmethod
@@ -207,19 +216,18 @@ class TextPoolRouter:
     CATEGORY = "Dynamic Prompt Engine"
 
     def route_text(self, index, **kwargs):
-        target = nonempty_text(kwargs.get(f"input_{int(index)}"))
-        if target is not None:
-            return (target,)
-
-        fallback_keys = sorted(
-            (key for key in kwargs if key.startswith("input_")),
-            key=lambda key: int(key.rsplit("_", 1)[1]),
-        )
-        for key in fallback_keys:
-            text = nonempty_text(kwargs.get(key))
-            if text is not None:
-                return (text,)
-        return ("",)
+        selected_key = f"input_{int(index)}"
+        raw = kwargs.get(selected_key)
+        if raw is None:
+            raise ValueError(
+                f"{self.__class__.__name__}: socket '{selected_key}' is not connected."
+            )
+        text = nonempty_text(raw)
+        if text is None:
+            raise ValueError(
+                f"{self.__class__.__name__}: '{selected_key}' is empty or whitespace-only."
+            )
+        return (text,)
 
 
 class SeededInputPick:
@@ -281,15 +289,26 @@ class OneTwoPersonToggle:
     DESCRIPTION = (
         "Switches between solo and multi-person branches: "
         "hash(seed:one_two_person_toggle) % 2. 0 → join(one_label, one_character); "
-        "1 → join(two_label, two_or_more_characters). Stream key is fixed so every "
-        "toggle with the same seed picks the same branch. Empty parts skipped; "
-        "output uses ', ' join hygiene. Outputs text and passthrough seed."
+        "1 → join(two_label, one_character, two_or_more_characters). "
+        "Stream key is fixed so every toggle with the same seed picks the same branch. "
+        "Empty parts cause an execution error. "
+        "Outputs text, passthrough seed, and branch index (0 or 1)."
     )
 
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
+                "mode": (
+                    "STRING",
+                    {
+                        "default": "Random",
+                        "multiline": False,
+                        "dynamicPrompts": False,
+                        "display": "select",
+                        "options": ["Random", "1girl", "2girls"],
+                    },
+                ),
                 "one_label": (
                     "STRING",
                     {
@@ -317,26 +336,74 @@ class OneTwoPersonToggle:
             },
         }
 
-    RETURN_TYPES = ("STRING", "INT")
-    RETURN_NAMES = ("text", "seed")
+    RETURN_TYPES = ("STRING", "INT", "INT")
+    RETURN_NAMES = ("text", "seed", "branch")
     FUNCTION = "select_section"
     CATEGORY = "Dynamic Prompt Engine"
 
     def select_section(
         self,
-        seed,
+        mode,
         one_label="1girl",
         two_label="2girls",
+        seed=0,
         one_character="",
         two_or_more_characters="",
     ):
-        master_seed = int(seed)
-        choice_index = derive_stream_seed(master_seed, self.STREAM_KEY) % 2
-        if choice_index == 0:
+        node_name = self.__class__.__name__
+
+        # Validate mode
+        valid_modes = {"Random", "1girl", "2girls"}
+        if mode not in valid_modes:
+            raise ValueError(
+                f"{node_name}: 'mode' must be one of {valid_modes}, got '{mode}'."
+            )
+
+        # Validate seed
+        try:
+            master_seed = int(seed)
+        except (TypeError, ValueError):
+            raise ValueError(
+                f"{node_name}: 'seed' must be a valid integer, got {seed!r}."
+            )
+
+        # Collect missing text inputs
+        missing = []
+        try:
+            validate_text_input(one_label, "one_label", node_name)
+        except ValueError as e:
+            missing.append(str(e))
+        try:
+            validate_text_input(two_label, "two_label", node_name)
+        except ValueError as e:
+            missing.append(str(e))
+        try:
+            validate_text_input(one_character, "one_character", node_name)
+        except ValueError as e:
+            missing.append(str(e))
+        try:
+            validate_text_input(two_or_more_characters, "two_or_more_characters", node_name)
+        except ValueError as e:
+            missing.append(str(e))
+
+        if missing:
+            raise ValueError(f"{node_name}: missing required inputs:\n" + "\n".join(missing))
+
+        # Branch selection
+        if mode == "Random":
+            branch = derive_stream_seed(master_seed, self.STREAM_KEY) % 2
+        elif mode == "1girl":
+            branch = 0
+        else:  # "2girls"
+            branch = 1
+
+        # Build text
+        if branch == 0:
             text = join_prompt_parts(one_label, one_character)
         else:
-            text = join_prompt_parts(two_label, two_or_more_characters)
-        return (text, master_seed)
+            text = join_prompt_parts(two_label, one_character, two_or_more_characters)
+
+        return (text, master_seed, branch)
 
 
 class TagJoin:
