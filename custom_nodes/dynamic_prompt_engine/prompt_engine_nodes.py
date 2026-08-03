@@ -343,9 +343,10 @@ class TagJoin:
     DESCRIPTION = (
         "Concatenates connected tag_N strings in numeric order. Skips empty/"
         "whitespace tags and strips leading/trailing commas/spaces from each part; "
-        "joins with ', ' and ends with ', ' when non-empty. Always shows a multiline "
-        "text preview (placeholder until run; filled after execution — not a tag "
-        "input). Dynamic sockets: connected tags + one spare. No seed. Outputs prompt."
+        "joins with the configured separator (default ', ') and ends with the same "
+        "separator when non-empty. Always shows a multiline text preview (placeholder "
+        "until run; filled after execution — not a tag input). Dynamic sockets: "
+        "connected tags + one spare. No seed. Outputs prompt."
     )
 
     @classmethod
@@ -359,6 +360,15 @@ class TagJoin:
                         "multiline": True,
                         "dynamicPrompts": False,
                         "placeholder": "Joined prompt preview (empty until run)…",
+                    },
+                ),
+                "separator": (
+                    "STRING",
+                    {
+                        "default": ", ",
+                        "multiline": False,
+                        "dynamicPrompts": False,
+                        "placeholder": ", ",
                     },
                 ),
             },
@@ -380,7 +390,7 @@ class TagJoin:
     CATEGORY = "Dynamic Prompt Engine"
     OUTPUT_NODE = True
 
-    def join_tags(self, text="", unique_id=None, extra_pnginfo=None, **kwargs):
+    def join_tags(self, text="", separator=", ", unique_id=None, extra_pnginfo=None, **kwargs):
         tag_keys = sorted(
             (key for key in kwargs if key.startswith("tag_")),
             key=lambda key: int(key.rsplit("_", 1)[1]),
@@ -395,9 +405,9 @@ class TagJoin:
             if value:
                 clean_tags.append(value)
 
-        final_prompt = ", ".join(clean_tags)
+        final_prompt = separator.join(clean_tags)
         if final_prompt:
-            final_prompt += ", "
+            final_prompt += separator
 
         node_uid = resolve_unique_id(unique_id)
         if node_uid is not None and extra_pnginfo is not None:
@@ -417,7 +427,7 @@ class TagJoin:
                     None,
                 )
                 if node:
-                    node["widgets_values"] = [final_prompt]
+                    node["widgets_values"] = [final_prompt, separator]
 
         return {
             "ui": {"text": [final_prompt]},
