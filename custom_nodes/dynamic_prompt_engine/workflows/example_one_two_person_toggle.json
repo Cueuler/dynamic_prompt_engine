@@ -696,7 +696,7 @@
     },
     {
       "id": 15,
-      "type": "BranchSelect2",
+      "type": "FirstOrMerge",
       "pos": [
         820,
         640
@@ -747,7 +747,7 @@
       ],
       "title": "Interaction by branch",
       "properties": {
-        "Node name for S&R": "BranchSelect2"
+        "Node name for S&R": "FirstOrMerge"
       },
       "widgets_values": [
         "",
@@ -1183,7 +1183,7 @@
     },
     {
       "id": 25,
-      "type": "BranchSelect2",
+      "type": "FirstOrMerge",
       "pos": [
         820,
         1820
@@ -1234,7 +1234,7 @@
       ],
       "title": "Char2 by branch",
       "properties": {
-        "Node name for S&R": "BranchSelect2"
+        "Node name for S&R": "FirstOrMerge"
       },
       "widgets_values": [
         "",

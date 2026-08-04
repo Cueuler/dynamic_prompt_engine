@@ -341,7 +341,8 @@ const ENGINE_NODE_NAMES = new Set([
   "SeededTextPool",
   "BranchToggle",
   "TagJoin",
-  "BranchSelect2",
+  "FirstOrMerge",
+  "FirstOrSecond",
 ]);
 
 function expectedOutputCount(nodeData) {

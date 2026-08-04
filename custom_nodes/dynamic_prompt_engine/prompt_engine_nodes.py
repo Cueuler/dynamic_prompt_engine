@@ -184,14 +184,78 @@ class SeededTextPool:
         return (chosen_text, master_seed)
 
 
-class BranchSelect2:
-    """Fixed 2-way switch: branch 0 → solo, branch 1 → duo."""
+class FirstOrMerge:
+    """Branch 0 → first input only; branch 1 → merge both inputs."""
 
     DESCRIPTION = (
-        "Picks exactly one of two strings from BranchToggle.branch: "
-        "0 → solo, 1 → duo. Fixed sockets only. "
-        "Empty selected path returns empty so TagJoin can skip it — e.g. leave solo "
-        "blank and wire Char2 section into duo to omit Char2 in 1girl mode. No seed."
+        "Routes from BranchToggle.branch: 0 → solo only; 1 → join_prompt_parts(solo, duo). "
+        "Fixed sockets only. Empty parts are skipped on merge — e.g. leave solo blank and "
+        "wire Char2 into duo to omit Char2 in 1girl mode and include it when branch is 1. "
+        "No seed."
+    )
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "branch": (
+                    "INT",
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 1,
+                        "step": 1,
+                        "forceInput": True,
+                    },
+                ),
+                "solo": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "multiline": True,
+                        "dynamicPrompts": False,
+                    },
+                ),
+                "duo": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "multiline": True,
+                        "dynamicPrompts": False,
+                    },
+                ),
+            },
+        }
+
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("text",)
+    FUNCTION = "select"
+    CATEGORY = "Dynamic Prompt Engine"
+
+    def select(self, branch, solo="", duo=""):
+        try:
+            choice = int(branch)
+        except (TypeError, ValueError):
+            raise ValueError(
+                f"{self.__class__.__name__}: 'branch' must be 0 or 1, got {branch!r}."
+            )
+        if choice == 0:
+            return (nonempty_text(solo) or "",)
+        if choice == 1:
+            return (join_prompt_parts(solo, duo),)
+        raise ValueError(
+            f"{self.__class__.__name__}: 'branch' must be 0 or 1, got {choice}."
+        )
+
+
+class FirstOrSecond:
+    """Branch 0 → first input only; branch 1 → second input only."""
+
+    DESCRIPTION = (
+        "Routes from BranchToggle.branch: 0 → solo only; 1 → duo only. "
+        "Fixed sockets only. Empty selected path returns empty so TagJoin can skip it — "
+        "e.g. leave solo blank and wire Char2 into duo to omit Char2 in 1girl mode. "
+        "No seed."
     )
 
     @classmethod
@@ -249,18 +313,21 @@ class BranchSelect2:
 
 
 class BranchToggle:
-    """Mode-controlled switch between one-person and two-or-more character sections."""
+    """Mode-controlled switch that selects branch_1 or branch_2 text."""
 
     STREAM_KEY = "one_two_person_toggle"
     MODE_CHOICES = ("Random", "1girl", "2girls")
 
     DESCRIPTION = (
-        "Branch Toggle: picks a shared one-/two-person branch and builds count+character "
-        "text. mode: Random → hash(seed:one_two_person_toggle) % 2; 1girl → 0; 2girls → 1. "
-        "Branch 0 → join(1girl, branch_1); "
-        "branch 1 → join(2girls, branch_1, branch_2). "
-        "branch_1 and branch_2 are required forceInputs (empty fails even on 1girl). "
-        "Wire branch into BranchSelect2.branch for interaction / Char2 sections. "
+        "Branch Toggle: picks branch 0 or 1, then outputs exactly one of the two "
+        "linked strings. mode: Random → hash(seed:one_two_person_toggle) % 2; "
+        "1girl → 0; 2girls → 1. "
+        "Branch 0 → branch_1 only; branch 1 → branch_2 only "
+        "(does not prepend 1girl/2girls or merge both inputs). "
+        "Put the full solo text in branch_1 and full duo text in branch_2 "
+        "(e.g. '1girl, alice' / '2girls, alice, bob'). "
+        "Both inputs are required (empty fails even on 1girl). "
+        "Wire branch into FirstOrMerge / FirstOrSecond.branch for other sections. "
         "Outputs text, passthrough seed, and branch (0 or 1)."
     )
 
@@ -321,12 +388,8 @@ class BranchToggle:
         else:  # "2girls"
             branch = 1
 
-        if branch == 0:
-            text = join_prompt_parts("1girl", cleaned["branch_1"])
-        else:
-            text = join_prompt_parts(
-                "2girls", cleaned["branch_1"], cleaned["branch_2"]
-            )
+        chosen = cleaned["branch_1"] if branch == 0 else cleaned["branch_2"]
+        text = join_prompt_parts(chosen)
 
         return (text, master_seed, branch)
 

@@ -1,20 +1,23 @@
 from .prompt_engine_nodes import (
     SeededTextPool,
-    BranchSelect2,
+    FirstOrMerge,
+    FirstOrSecond,
     BranchToggle,
     TagJoin,
 )
 
 NODE_CLASS_MAPPINGS = {
     "SeededTextPool": SeededTextPool,
-    "BranchSelect2": BranchSelect2,
+    "FirstOrMerge": FirstOrMerge,
+    "FirstOrSecond": FirstOrSecond,
     "BranchToggle": BranchToggle,
     "TagJoin": TagJoin,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "SeededTextPool": "Seeded Text Pool",
-    "BranchSelect2": "Branch Select 2",
+    "FirstOrMerge": "First OR Merge",
+    "FirstOrSecond": "First OR Second",
     "BranchToggle": "Branch Toggle",
     "TagJoin": "Tag Join",
 }
