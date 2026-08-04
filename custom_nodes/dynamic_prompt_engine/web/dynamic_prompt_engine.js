@@ -93,8 +93,21 @@ function createDynamicSocketHelpers(prefix) {
 }
 
 const tagSockets = createDynamicSocketHelpers("tag_");
-const pickSockets = createDynamicSocketHelpers("pick_");
-const inputSockets = createDynamicSocketHelpers("input_");
+
+const PREVIEW_DOM_INSET = 24;
+const PREVIEW_CHROME_PAD = 24;
+
+function slotHeight() {
+  return globalThis.LiteGraph?.NODE_SLOT_HEIGHT ?? 20;
+}
+
+function titleHeight() {
+  return globalThis.LiteGraph?.NODE_TITLE_HEIGHT ?? 30;
+}
+
+function widgetRowHeight() {
+  return globalThis.LiteGraph?.NODE_WIDGET_HEIGHT ?? 20;
+}
 
 /** Expand to ComfyUI/LiteGraph computed size; never force custom mins or shrink. */
 function applyDefaultComputedSize(node) {
@@ -111,8 +124,83 @@ function applyDefaultComputedSize(node) {
   ]);
 }
 
+/** Tag Join preview only — never fall back to another widget. */
 function previewWidget(node) {
-  return (node.widgets ?? []).find((widget) => widget?.name === "text") ?? node.widgets?.[0];
+  return (node.widgets ?? []).find((widget) => widget?.name === "text") ?? null;
+}
+
+function ensurePreviewComputeSize(widget) {
+  if (widget.__dpePreviewSized) {
+    return;
+  }
+  widget.__dpePreviewSized = true;
+  if (widget.__dpePreviewHeight == null) {
+    widget.__dpePreviewHeight = OUTPUT_HEIGHT;
+  }
+  widget.computeSize = function (width) {
+    const w =
+      typeof width === "number" && width > 0
+        ? width
+        : Math.max(OUTPUT_WIDTH, widget.__dpePreviewWidth ?? OUTPUT_WIDTH);
+    return [w, Math.max(OUTPUT_HEIGHT, widget.__dpePreviewHeight ?? OUTPUT_HEIGHT)];
+  };
+}
+
+function otherWidgetsHeight(node, preview) {
+  let height = 0;
+  const nodeWidth = node.size?.[0] ?? OUTPUT_WIDTH;
+  for (const widget of node.widgets ?? []) {
+    if (!widget || widget === preview) {
+      continue;
+    }
+    const size = widget.computeSize?.(nodeWidth);
+    height += size?.[1] ?? widgetRowHeight();
+  }
+  return height;
+}
+
+function isWidgetBoundInput(input) {
+  return input?.widget != null || input?.name === "text";
+}
+
+function freeSocketRowCount(node) {
+  const freeIn = (node.inputs ?? []).filter((i) => !isWidgetBoundInput(i)).length;
+  const freeOut = (node.outputs ?? []).length;
+  return Math.max(freeIn, freeOut);
+}
+
+function availablePreviewHeight(node, preview) {
+  const chrome =
+    titleHeight() +
+    freeSocketRowCount(node) * slotHeight() +
+    otherWidgetsHeight(node, preview) +
+    PREVIEW_CHROME_PAD;
+  const nodeH = node.size?.[1] ?? OUTPUT_HEIGHT;
+  return Math.max(OUTPUT_HEIGHT, nodeH - chrome);
+}
+
+function measureContentHeight(inputEl) {
+  const previous = inputEl.style.height;
+  inputEl.style.height = "0px";
+  const measured = inputEl.scrollHeight;
+  inputEl.style.height = previous;
+  return Math.max(OUTPUT_HEIGHT, measured);
+}
+
+function previewDomWidth(node) {
+  return Math.max(
+    OUTPUT_WIDTH,
+    (node.size?.[0] ?? OUTPUT_WIDTH) - PREVIEW_DOM_INSET,
+  );
+}
+
+function syncPreviewDom(node, widget) {
+  const width = previewDomWidth(node);
+  const height = Math.max(OUTPUT_HEIGHT, widget.__dpePreviewHeight ?? OUTPUT_HEIGHT);
+  widget.__dpePreviewWidth = width;
+  widget.computedHeight = height;
+  widget.inputEl.style.width = `${width}px`;
+  widget.inputEl.style.height = `${height}px`;
 }
 
 function stylePreviewWidget(node) {
@@ -130,30 +218,30 @@ function stylePreviewWidget(node) {
   if (!widget.inputEl.placeholder) {
     widget.inputEl.placeholder = PREVIEW_PLACEHOLDER;
   }
-  if (!widget.__dpePreviewSized) {
-    widget.__dpePreviewSized = true;
-    const previous = widget.computeSize?.bind(widget);
-    widget.computeSize = function (width) {
-      const size = previous?.(width) ?? [OUTPUT_WIDTH, OUTPUT_HEIGHT];
-      const w =
-        typeof width === "number" && width > 0
-          ? width
-          : Math.max(OUTPUT_WIDTH, size[0] ?? OUTPUT_WIDTH);
-      return [w, Math.max(OUTPUT_HEIGHT, size[1] ?? OUTPUT_HEIGHT)];
-    };
-  }
+  ensurePreviewComputeSize(widget);
 }
 
-function fitPreviewWidget(node) {
+/**
+ * @param {"content"|"resize"} mode
+ *   content — height from textarea scrollHeight (grow with joined text)
+ *   resize  — height from remaining node space (manual drag)
+ */
+function fitPreviewWidget(node, mode = "content") {
   const widget = previewWidget(node);
   if (!widget?.inputEl) {
     return;
   }
   stylePreviewWidget(node);
-  const width = Math.max(OUTPUT_WIDTH, (node.size?.[0] ?? OUTPUT_WIDTH) - 24);
-  const height = Math.max(OUTPUT_HEIGHT, widget.computedHeight ?? OUTPUT_HEIGHT);
+  // Width first so scrollHeight reflects the correct wrap width.
+  const width = previewDomWidth(node);
   widget.inputEl.style.width = `${width}px`;
-  widget.inputEl.style.height = `${height}px`;
+  widget.__dpePreviewWidth = width;
+  if (mode === "resize") {
+    widget.__dpePreviewHeight = availablePreviewHeight(node, widget);
+  } else {
+    widget.__dpePreviewHeight = measureContentHeight(widget.inputEl);
+  }
+  syncPreviewDom(node, widget);
 }
 
 function setPreviewValue(node, text) {
@@ -167,7 +255,7 @@ function setPreviewValue(node, text) {
     widget.inputEl.value = value;
   }
   stylePreviewWidget(node);
-  fitPreviewWidget(node);
+  fitPreviewWidget(node, "content");
   applyDefaultComputedSize(node);
   graphOf(node)?.setDirtyCanvas?.(true, false);
 }
@@ -179,10 +267,10 @@ function registerDynamicStringNode(nodeType, sockets, options = {}) {
   nodeType.prototype.onNodeCreated = function () {
     const result = originalCreated?.apply(this, arguments);
     queueMicrotask(() => {
-      sockets.setVisibleInputs(this, 1);
+      sockets.setVisibleInputs(this, sockets.visibleCount(this));
       if (withOutputPreview) {
         stylePreviewWidget(this);
-        fitPreviewWidget(this);
+        fitPreviewWidget(this, "content");
       }
       applyDefaultComputedSize(this);
     });
@@ -193,7 +281,7 @@ function registerDynamicStringNode(nodeType, sockets, options = {}) {
     const originalOnResize = nodeType.prototype.onResize;
     nodeType.prototype.onResize = function () {
       const result = originalOnResize?.apply(this, arguments);
-      fitPreviewWidget(this);
+      fitPreviewWidget(this, "resize");
       return result;
     };
 
@@ -204,7 +292,7 @@ function registerDynamicStringNode(nodeType, sockets, options = {}) {
         sockets.setVisibleInputs(this, sockets.visibleCount(this));
         sockets.refreshInputLabels(this);
         stylePreviewWidget(this);
-        fitPreviewWidget(this);
+        fitPreviewWidget(this, "content");
         applyDefaultComputedSize(this);
       });
     };
@@ -235,7 +323,7 @@ function registerDynamicStringNode(nodeType, sockets, options = {}) {
       sockets.refreshInputLabels(this);
       if (withOutputPreview) {
         stylePreviewWidget(this);
-        fitPreviewWidget(this);
+        fitPreviewWidget(this, "resize");
       }
       applyDefaultComputedSize(this);
     });
@@ -249,23 +337,92 @@ function registerDynamicStringNode(nodeType, sockets, options = {}) {
   };
 }
 
+const ENGINE_NODE_NAMES = new Set([
+  "SeededTextPool",
+  "BranchToggle",
+  "TagJoin",
+  "BranchSelect2",
+]);
+
+function expectedOutputCount(nodeData) {
+  if (Array.isArray(nodeData?.output)) {
+    return nodeData.output.length;
+  }
+  if (Array.isArray(nodeData?.output_name)) {
+    return nodeData.output_name.length;
+  }
+  return null;
+}
+
+/**
+ * Saved workflows may still carry phantom outputs (e.g. TagJoin "seed") from older
+ * UI experiments. Those slots are not in RETURN_TYPES, so links to them crash
+ * validation with "tuple index out of range".
+ */
+function syncNodeOutputsToSchema(node, nodeData) {
+  const expected = expectedOutputCount(nodeData);
+  if (expected == null || !Array.isArray(node.outputs)) {
+    return;
+  }
+  while (node.outputs.length > expected) {
+    const index = node.outputs.length - 1;
+    const output = node.outputs[index];
+    if (output?.links?.length) {
+      for (const linkId of [...output.links]) {
+        graphOf(node)?.removeLink?.(linkId);
+      }
+    }
+    node.removeOutput(index);
+  }
+}
+
+/** Drop widgets removed from the Python schema (e.g. TagJoin separator). */
+function stripUnknownWidgets(node, nodeData) {
+  if (nodeData?.name !== "TagJoin" || !Array.isArray(node.widgets)) {
+    return;
+  }
+  for (let i = node.widgets.length - 1; i >= 0; i--) {
+    if (node.widgets[i]?.name === "separator") {
+      node.widgets.splice(i, 1);
+    }
+  }
+}
+
+function registerSchemaSync(nodeType, nodeData) {
+  const originalCreated = nodeType.prototype.onNodeCreated;
+  nodeType.prototype.onNodeCreated = function () {
+    const result = originalCreated?.apply(this, arguments);
+    queueMicrotask(() => {
+      syncNodeOutputsToSchema(this, nodeData);
+      stripUnknownWidgets(this, nodeData);
+    });
+    return result;
+  };
+
+  const originalConfigure = nodeType.prototype.onConfigure;
+  nodeType.prototype.onConfigure = function () {
+    originalConfigure?.apply(this, arguments);
+    requestAnimationFrame(() => {
+      syncNodeOutputsToSchema(this, nodeData);
+      stripUnknownWidgets(this, nodeData);
+    });
+  };
+}
+
 app.registerExtension({
   name: "dynamic-prompt-engine.dynamic-sockets",
   beforeRegisterNodeDef(nodeType, nodeData) {
+    if (!ENGINE_NODE_NAMES.has(nodeData.name)) {
+      return;
+    }
+
     if (nodeData.name === "TagJoin") {
       registerDynamicStringNode(nodeType, tagSockets, {
         withOutputPreview: true,
       });
-      return;
     }
 
-    if (nodeData.name === "SeededInputPick") {
-      registerDynamicStringNode(nodeType, pickSockets);
-      return;
-    }
-
-    if (nodeData.name === "TextPoolRouter") {
-      registerDynamicStringNode(nodeType, inputSockets);
-    }
+    // After dynamic-socket wrappers so schema sync runs last on create/configure.
+    registerSchemaSync(nodeType, nodeData);
   },
 });

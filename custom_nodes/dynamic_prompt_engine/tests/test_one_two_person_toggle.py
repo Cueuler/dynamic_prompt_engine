@@ -1,77 +1,43 @@
-"""Tests for OneTwoPersonToggle and TextPoolRouter."""
+"""Tests for BranchToggle and BranchSelect2."""
 
 import pytest
 import sys
 import os
 
-# Add the parent directory so we can import the module
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from prompt_engine_nodes import (
-    OneTwoPersonToggle,
-    TextPoolRouter,
-    nonempty_text,
+    BranchToggle,
+    BranchSelect2,
+    TagJoin,
     validate_text_input,
     derive_stream_seed,
     join_prompt_parts,
 )
 
 
-# ---------------------------------------------------------------------------
-# OneTwoPersonToggle
-# ---------------------------------------------------------------------------
+def _toggle(mode="1girl", seed=0, branch_1="Alice", branch_2="Bob"):
+    return BranchToggle().select_section(
+        mode=mode,
+        seed=seed,
+        branch_1=branch_1,
+        branch_2=branch_2,
+    )
+
 
 def test_random_mode_deterministic():
-    toggle = OneTwoPersonToggle()
-    # Same seed, same branch
-    result1 = toggle.select_section(
-        mode="Random",
-        one_label="1girl",
-        two_label="2girls",
-        seed=42,
-        one_character="Alice",
-        two_or_more_characters="Bob, Charlie",
-    )
-    result2 = toggle.select_section(
-        mode="Random",
-        one_label="1girl",
-        two_label="2girls",
-        seed=42,
-        one_character="Alice",
-        two_or_more_characters="Bob, Charlie",
-    )
-    assert result1[2] == result2[2]  # branch
-    assert result1[0] == result2[0]  # text
+    result1 = _toggle(mode="Random", seed=42, branch_1="Alice", branch_2="Bob, Charlie")
+    result2 = _toggle(mode="Random", seed=42, branch_1="Alice", branch_2="Bob, Charlie")
+    assert result1[2] == result2[2]
+    assert result1[0] == result2[0]
 
 
 def test_different_seeds_can_produce_different_random_branches():
-    toggle = OneTwoPersonToggle()
-    branches = set()
-    for s in range(100):
-        result = toggle.select_section(
-            mode="Random",
-            one_label="1girl",
-            two_label="2girls",
-            seed=s,
-            one_character="test",
-            two_or_more_characters="test2",
-        )
-        branches.add(result[2])
-    # It's *possible* that all 100 seeds give the same branch, but very unlikely.
-    # We at least verify that both 0 and 1 are possible.
+    branches = {_toggle(mode="Random", seed=s, branch_1="test", branch_2="test2")[2] for s in range(100)}
     if len(branches) == 1:
-        # If only one branch appears, try a larger range
         branches = set()
         for s in range(10000):
-            result = toggle.select_section(
-                mode="Random",
-                one_label="1girl",
-                two_label="2girls",
-                seed=s,
-                one_character="test",
-                two_or_more_characters="test2",
-            )
-            branches.add(result[2])
+            branches.add(_toggle(mode="Random", seed=s, branch_1="test", branch_2="test2")[2])
             if len(branches) == 2:
                 break
     assert 0 in branches
@@ -79,173 +45,107 @@ def test_different_seeds_can_produce_different_random_branches():
 
 
 def test_onegirl_always_returns_branch_0():
-    toggle = OneTwoPersonToggle()
     for s in range(10):
-        result = toggle.select_section(
-            mode="1girl",
-            one_label="1girl",
-            two_label="2girls",
-            seed=s,
-            one_character="Alice",
-            two_or_more_characters="Bob",
-        )
-        assert result[2] == 0
+        assert _toggle(mode="1girl", seed=s)[2] == 0
 
 
 def test_twogirls_always_returns_branch_1():
-    toggle = OneTwoPersonToggle()
     for s in range(10):
-        result = toggle.select_section(
-            mode="2girls",
-            one_label="1girl",
-            two_label="2girls",
-            seed=s,
-            one_character="Alice",
-            two_or_more_characters="Bob",
-        )
-        assert result[2] == 1
+        assert _toggle(mode="2girls", seed=s)[2] == 1
 
 
 def test_branch_output_exact():
-    toggle = OneTwoPersonToggle()
-    result = toggle.select_section(
-        mode="1girl",
-        one_label="1girl",
-        two_label="2girls",
-        seed=0,
-        one_character="char",
-        two_or_more_characters="chars",
-    )
+    result = _toggle(mode="1girl", seed=0, branch_1="char", branch_2="chars")
     assert isinstance(result[2], int)
     assert result[2] in (0, 1)
 
 
-def test_one_person_output_uses_only_one_character():
-    toggle = OneTwoPersonToggle()
-    result = toggle.select_section(
-        mode="1girl",
-        one_label="1girl",
-        two_label="2girls",
-        seed=0,
-        one_character="Alice",
-        two_or_more_characters="Bob",
-    )
-    text = result[0]
+def test_one_person_output_uses_only_branch_1():
+    text = _toggle(mode="1girl", branch_1="Alice", branch_2="Bob")[0]
+    assert text.startswith("1girl")
     assert "Alice" in text
     assert "Bob" not in text
 
 
-def test_two_person_output_includes_both():
-    toggle = OneTwoPersonToggle()
-    result = toggle.select_section(
-        mode="2girls",
-        one_label="1girl",
-        two_label="2girls",
-        seed=0,
-        one_character="Alice",
-        two_or_more_characters="Bob",
-    )
-    text = result[0]
+def test_two_person_output_includes_both_branches():
+    text = _toggle(mode="2girls", branch_1="Alice", branch_2="Bob")[0]
+    assert text.startswith("2girls")
     assert "Alice" in text
     assert "Bob" in text
 
 
-def test_missing_one_label_raises():
-    toggle = OneTwoPersonToggle()
-    with pytest.raises(ValueError, match="one_label"):
-        toggle.select_section(
-            mode="1girl",
-            one_label="",
-            two_label="2girls",
-            seed=0,
-            one_character="Alice",
-            two_or_more_characters="Bob",
-        )
+def test_missing_branch_1_raises():
+    with pytest.raises(ValueError, match="branch_1"):
+        _toggle(mode="1girl", branch_1="", branch_2="Bob")
 
 
-def test_missing_two_label_raises():
-    toggle = OneTwoPersonToggle()
-    with pytest.raises(ValueError, match="two_label"):
-        toggle.select_section(
-            mode="1girl",
-            one_label="1girl",
-            two_label="   ",
-            seed=0,
-            one_character="Alice",
-            two_or_more_characters="Bob",
-        )
-
-
-def test_missing_one_character_raises():
-    toggle = OneTwoPersonToggle()
-    with pytest.raises(ValueError, match="one_character"):
-        toggle.select_section(
-            mode="1girl",
-            one_label="1girl",
-            two_label="2girls",
-            seed=0,
-            one_character="",
-            two_or_more_characters="Bob",
-        )
-
-
-def test_missing_two_or_more_characters_raises_even_when_onegirl():
-    toggle = OneTwoPersonToggle()
-    with pytest.raises(ValueError, match="two_or_more_characters"):
-        toggle.select_section(
-            mode="1girl",
-            one_label="1girl",
-            two_label="2girls",
-            seed=0,
-            one_character="Alice",
-            two_or_more_characters="",
-        )
+def test_missing_branch_2_raises_even_when_onegirl():
+    with pytest.raises(ValueError, match="branch_2"):
+        _toggle(mode="1girl", branch_1="Alice", branch_2="")
 
 
 def test_default_seed_succeeds():
-    toggle = OneTwoPersonToggle()
-    # seed=0 is the default; unconnected seed is supplied as 0 by ComfyUI
-    result = toggle.select_section(
-        mode="1girl",
-        one_label="1girl",
-        two_label="2girls",
-        seed=0,
-        one_character="Alice",
-        two_or_more_characters="Bob",
-    )
-    assert result[1] == 0
+    assert _toggle(mode="1girl", seed=0)[1] == 0
 
 
-# ---------------------------------------------------------------------------
-# TextPoolRouter strictness
-# ---------------------------------------------------------------------------
-
-def test_text_pool_router_missing_selected_input_raises():
-    router = TextPoolRouter()
-    # Only input_0 is connected, request input_1
-    with pytest.raises(ValueError, match="input_1"):
-        router.route_text(index=1, input_0="hello")
+def test_branch_select2_picks_solo_or_duo():
+    select = BranchSelect2()
+    assert select.select(0, solo="solo path", duo="duo path")[0] == "solo path"
+    assert select.select(1, solo="solo path", duo="duo path")[0] == "duo path"
 
 
-def test_text_pool_router_empty_selected_input_raises():
-    router = TextPoolRouter()
-    with pytest.raises(ValueError, match="input_0"):
-        router.route_text(index=0, input_0="")
+def test_branch_select2_empty_solo_omits_char2():
+    select = BranchSelect2()
+    assert select.select(0, solo="", duo="jacket, boots")[0] == ""
+    assert select.select(1, solo="", duo="jacket, boots")[0] == "jacket, boots"
 
 
-def test_text_pool_router_no_fallback():
-    router = TextPoolRouter()
-    # input_0 is empty, input_1 is non‑empty, but index=0 should fail
-    with pytest.raises(ValueError):
-        router.route_text(index=0, input_0="", input_1="fallback")
-    # index=1 should succeed
-    result = router.route_text(index=1, input_0="", input_1="fallback")
-    assert result[0] == "fallback"
+def test_branch_select2_rejects_invalid_branch():
+    with pytest.raises(ValueError, match="branch"):
+        BranchSelect2().select(2, solo="a", duo="b")
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+def test_same_branch_routes_section_bundles_consistently():
+    select = BranchSelect2()
+    solo = TagJoin().join_tags(
+        text="", tag_0="standing", tag_1="waving", tag_2="hands at sides"
+    )["result"][0]
+    duo = TagJoin().join_tags(
+        text="", tag_0="sitting", tag_1="talking", tag_2="holding hands"
+    )["result"][0]
+    char1_clothes = TagJoin().join_tags(
+        text="", tag_0="school uniform", tag_1="ribbon", tag_2="loafers"
+    )["result"][0]
+    char2_section = TagJoin().join_tags(
+        text="", tag_0="tall", tag_1="jacket", tag_2="boots"
+    )["result"][0]
+
+    for mode, expected_branch in [("1girl", 0), ("2girls", 1)]:
+        text, _seed, branch = _toggle(mode=mode, seed=0)
+        assert branch == expected_branch
+        interaction = select.select(branch, solo=solo, duo=duo)[0]
+        char2 = select.select(branch, solo="", duo=char2_section)[0]
+        final = TagJoin().join_tags(
+            text="",
+            tag_0="masterpiece",
+            tag_1=text,
+            tag_2=interaction,
+            tag_3="slender",
+            tag_4=char1_clothes,
+            tag_5=char2,
+            tag_6="park",
+            tag_7="soft daylight",
+        )["result"][0]
+        assert "school uniform" in final
+        if expected_branch == 0:
+            assert "holding hands" not in final
+            assert "Bob" not in final
+            assert "jacket" not in final
+        else:
+            assert "holding hands" in final
+            assert "Bob" in final
+            assert "jacket" in final
+
 
 def test_validate_text_input_raises_for_none():
     with pytest.raises(ValueError):
@@ -263,16 +163,13 @@ def test_validate_text_input_raises_for_whitespace():
 
 
 def test_validate_text_input_returns_cleaned_text():
-    result = validate_text_input("  hello  ", "test", "TestNode")
-    assert result == "hello"
+    assert validate_text_input("  hello  ", "test", "TestNode") == "hello"
 
 
 def test_derive_stream_seed_consistent():
-    s1 = derive_stream_seed(42, "node:abc")
-    s2 = derive_stream_seed(42, "node:abc")
-    assert s1 == s2
+    assert derive_stream_seed(42, "node:abc") == derive_stream_seed(42, "node:abc")
 
 
 def test_join_prompt_parts_hygiene():
-    result = join_prompt_parts(" a , b ", " , c ")
-    assert result == "a, b, c, "
+    assert join_prompt_parts(" a , b ", " , c ") == "a , b, c, "
+    assert join_prompt_parts("  alice  ", "bob,") == "alice, bob, "

@@ -1,24 +1,21 @@
 from .prompt_engine_nodes import (
     SeededTextPool,
-    TextPoolRouter,
-    SeededInputPick,
-    OneTwoPersonToggle,
+    BranchSelect2,
+    BranchToggle,
     TagJoin,
 )
 
 NODE_CLASS_MAPPINGS = {
     "SeededTextPool": SeededTextPool,
-    "TextPoolRouter": TextPoolRouter,
-    "SeededInputPick": SeededInputPick,
-    "OneTwoPersonToggle": OneTwoPersonToggle,
+    "BranchSelect2": BranchSelect2,
+    "BranchToggle": BranchToggle,
     "TagJoin": TagJoin,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "SeededTextPool": "Seeded Text Pool",
-    "TextPoolRouter": "Text Pool Router",
-    "SeededInputPick": "Seeded Input Pick",
-    "OneTwoPersonToggle": "One/Two Person Toggle",
+    "BranchSelect2": "Branch Select 2",
+    "BranchToggle": "Branch Toggle",
     "TagJoin": "Tag Join",
 }
 

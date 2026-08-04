@@ -184,156 +184,94 @@ class SeededTextPool:
         return (chosen_text, master_seed)
 
 
-class TextPoolRouter:
-    """Routes connected text inputs according to index."""
+class BranchSelect2:
+    """Fixed 2-way switch: branch 0 → solo, branch 1 → duo."""
 
     DESCRIPTION = (
-        "Legacy router: selects input_N by index (0 → input_0, …). Dynamic sockets "
-        "like Tag Join. Empty/whitespace inputs cause an execution error; no fallback "
-        "to other inputs. No seed."
+        "Picks exactly one of two strings from BranchToggle.branch: "
+        "0 → solo, 1 → duo. Fixed sockets only. "
+        "Empty selected path returns empty so TagJoin can skip it — e.g. leave solo "
+        "blank and wire Char2 section into duo to omit Char2 in 1girl mode. No seed."
     )
 
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "index": (
+                "branch": (
                     "INT",
-                    {"default": 0, "min": 0, "max": 9999, "step": 1},
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 1,
+                        "step": 1,
+                        "forceInput": True,
+                    },
+                ),
+                "solo": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "multiline": True,
+                        "dynamicPrompts": False,
+                    },
+                ),
+                "duo": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "multiline": True,
+                        "dynamicPrompts": False,
+                    },
                 ),
             },
-            "optional": FlexibleOptionalInputType(
-                "STRING",
-                {
-                    "input_0": ("STRING", {"default": "", "forceInput": True}),
-                },
-            ),
         }
 
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("text",)
-    FUNCTION = "route_text"
+    FUNCTION = "select"
     CATEGORY = "Dynamic Prompt Engine"
 
-    def route_text(self, index, **kwargs):
-        selected_key = f"input_{int(index)}"
-        raw = kwargs.get(selected_key)
-        if raw is None:
+    def select(self, branch, solo="", duo=""):
+        try:
+            choice = int(branch)
+        except (TypeError, ValueError):
             raise ValueError(
-                f"{self.__class__.__name__}: socket '{selected_key}' is not connected."
+                f"{self.__class__.__name__}: 'branch' must be 0 or 1, got {branch!r}."
             )
-        text = nonempty_text(raw)
-        if text is None:
-            raise ValueError(
-                f"{self.__class__.__name__}: '{selected_key}' is empty or whitespace-only."
-            )
-        return (text,)
-
-
-class SeededInputPick:
-    """Picks one connected STRING input deterministically from seed + node id."""
-
-    DESCRIPTION = (
-        "Collects non-empty linked pick_N strings (numeric order) and picks one with "
-        "hash(seed:node:{id}) % candidate_count. Dynamic sockets keep connected picks "
-        "plus one spare. Outputs text and passthrough seed."
-    )
-
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "seed": SEED_INPUT,
-            },
-            "optional": FlexibleOptionalInputType(
-                "STRING",
-                {
-                    "pick_0": ("STRING", {"default": "", "forceInput": True}),
-                },
-            ),
-            "hidden": {
-                "unique_id": "UNIQUE_ID",
-            },
-        }
-
-    RETURN_TYPES = ("STRING", "INT")
-    RETURN_NAMES = ("text", "seed")
-    FUNCTION = "pick_input"
-    CATEGORY = "Dynamic Prompt Engine"
-
-    def pick_input(self, seed, unique_id=None, **kwargs):
-        master_seed = int(seed)
-        pick_keys = sorted(
-            (key for key in kwargs if key.startswith("pick_")),
-            key=lambda key: int(key.rsplit("_", 1)[1]),
+        if choice == 0:
+            return (nonempty_text(solo) or "",)
+        if choice == 1:
+            return (nonempty_text(duo) or "",)
+        raise ValueError(
+            f"{self.__class__.__name__}: 'branch' must be 0 or 1, got {choice}."
         )
-        candidates = []
-        for key in pick_keys:
-            text = nonempty_text(kwargs.get(key))
-            if text is not None:
-                candidates.append(text)
-
-        if not candidates:
-            return ("", master_seed)
-
-        stream_key = stream_key_from_unique_id(unique_id)
-        choice_index = derive_stream_seed(master_seed, stream_key) % len(candidates)
-        return (candidates[choice_index], master_seed)
 
 
-class OneTwoPersonToggle:
-    """Seed-based switch between one-person and two-or-more character sections."""
+class BranchToggle:
+    """Mode-controlled switch between one-person and two-or-more character sections."""
 
     STREAM_KEY = "one_two_person_toggle"
+    MODE_CHOICES = ("Random", "1girl", "2girls")
 
     DESCRIPTION = (
-        "Switches between solo and multi-person branches: "
-        "hash(seed:one_two_person_toggle) % 2. 0 → join(one_label, one_character); "
-        "1 → join(two_label, one_character, two_or_more_characters). "
-        "If two_or_more_characters is empty, one_character is duplicated. "
-        "Stream key is fixed so every toggle with the same seed picks the same branch. "
-        "Empty parts cause an execution error. "
-        "Outputs text, passthrough seed, and branch index (0 or 1)."
+        "Branch Toggle: picks a shared one-/two-person branch and builds count+character "
+        "text. mode: Random → hash(seed:one_two_person_toggle) % 2; 1girl → 0; 2girls → 1. "
+        "Branch 0 → join(1girl, branch_1); "
+        "branch 1 → join(2girls, branch_1, branch_2). "
+        "branch_1 and branch_2 are required forceInputs (empty fails even on 1girl). "
+        "Wire branch into BranchSelect2.branch for interaction / Char2 sections. "
+        "Outputs text, passthrough seed, and branch (0 or 1)."
     )
 
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "mode": (
-                    "STRING",
-                    {
-                        "default": "Random",
-                        "multiline": False,
-                        "dynamicPrompts": False,
-                        "display": "select",
-                        "options": ["Random", "1girl", "2girls"],
-                    },
-                ),
-                "one_label": (
-                    "STRING",
-                    {
-                        "default": "1girl",
-                        "multiline": True,
-                        "dynamicPrompts": False,
-                    },
-                ),
-                "two_label": (
-                    "STRING",
-                    {
-                        "default": "2girls",
-                        "multiline": True,
-                        "dynamicPrompts": False,
-                    },
-                ),
+                "mode": (list(cls.MODE_CHOICES), {"default": "Random"}),
                 "seed": SEED_INPUT,
-            },
-            "optional": {
-                "one_character": ("STRING", {"default": "", "forceInput": True}),
-                "two_or_more_characters": (
-                    "STRING",
-                    {"default": "", "forceInput": True},
-                ),
+                "branch_1": ("STRING", {"default": "", "forceInput": True}),
+                "branch_2": ("STRING", {"default": "", "forceInput": True}),
             },
         }
 
@@ -342,25 +280,15 @@ class OneTwoPersonToggle:
     FUNCTION = "select_section"
     CATEGORY = "Dynamic Prompt Engine"
 
-    def select_section(
-        self,
-        mode,
-        one_label="1girl",
-        two_label="2girls",
-        seed=0,
-        one_character="",
-        two_or_more_characters="",
-    ):
+    def select_section(self, mode, seed=0, branch_1="", branch_2=""):
         node_name = self.__class__.__name__
 
-        # Validate mode
-        valid_modes = {"Random", "1girl", "2girls"}
-        if mode not in valid_modes:
+        if mode not in self.MODE_CHOICES:
             raise ValueError(
-                f"{node_name}: 'mode' must be one of {valid_modes}, got '{mode}'."
+                f"{node_name}: 'mode' must be one of {set(self.MODE_CHOICES)}, "
+                f"got '{mode}'."
             )
 
-        # Validate seed
         try:
             master_seed = int(seed)
         except (TypeError, ValueError):
@@ -368,48 +296,24 @@ class OneTwoPersonToggle:
                 f"{node_name}: 'seed' must be a valid integer, got {seed!r}."
             )
 
-        # Build a map of which inputs are connected (have a link)
-        input_links = {}
-        if hasattr(self, "inputs"):
-            for inp in self.inputs:
-                if inp.name in (
-                    "one_label",
-                    "two_label",
-                    "one_character",
-                    "two_or_more_characters",
-                ):
-                    input_links[inp.name] = inp.link is not None
-
-        # Collect missing inputs: only validate if the input is NOT connected
-        # one_character is always required (even if connected, must be non‑empty)
         missing = []
+        cleaned = {}
         for input_name, value in [
-            ("one_label", one_label),
-            ("two_label", two_label),
+            ("branch_1", branch_1),
+            ("branch_2", branch_2),
         ]:
-            is_connected = input_links.get(input_name, False)
-            if is_connected:
-                continue
             try:
-                validate_text_input(value, input_name, node_name)
+                cleaned[input_name] = validate_text_input(
+                    value, input_name, node_name
+                )
             except ValueError as e:
                 missing.append(str(e))
-
-        # one_character is always required
-        try:
-            validate_text_input(one_character, "one_character", node_name)
-        except ValueError as e:
-            missing.append(str(e))
-
-        # two_or_more_characters is optional; if empty we will duplicate one_character
-        # so no validation needed
 
         if missing:
             raise ValueError(
                 f"{node_name}: missing required inputs:\n" + "\n".join(missing)
             )
 
-        # Branch selection
         if mode == "Random":
             branch = derive_stream_seed(master_seed, self.STREAM_KEY) % 2
         elif mode == "1girl":
@@ -417,15 +321,12 @@ class OneTwoPersonToggle:
         else:  # "2girls"
             branch = 1
 
-        # Build text
         if branch == 0:
-            text = join_prompt_parts(one_label, one_character)
+            text = join_prompt_parts("1girl", cleaned["branch_1"])
         else:
-            # If two_or_more_characters is empty, duplicate one_character
-            char2 = nonempty_text(two_or_more_characters)
-            if char2 is None:
-                char2 = one_character
-            text = join_prompt_parts(two_label, one_character, char2)
+            text = join_prompt_parts(
+                "2girls", cleaned["branch_1"], cleaned["branch_2"]
+            )
 
         return (text, master_seed, branch)
 
