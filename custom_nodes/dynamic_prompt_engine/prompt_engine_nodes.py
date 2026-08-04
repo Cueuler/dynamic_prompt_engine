@@ -290,6 +290,7 @@ class OneTwoPersonToggle:
         "Switches between solo and multi-person branches: "
         "hash(seed:one_two_person_toggle) % 2. 0 → join(one_label, one_character); "
         "1 → join(two_label, one_character, two_or_more_characters). "
+        "If two_or_more_characters is empty, one_character is duplicated. "
         "Stream key is fixed so every toggle with the same seed picks the same branch. "
         "Empty parts cause an execution error. "
         "Outputs text, passthrough seed, and branch index (0 or 1)."
@@ -380,21 +381,28 @@ class OneTwoPersonToggle:
                     input_links[inp.name] = inp.link is not None
 
         # Collect missing inputs: only validate if the input is NOT connected
+        # one_character is always required (even if connected, must be non‑empty)
         missing = []
         for input_name, value in [
             ("one_label", one_label),
             ("two_label", two_label),
-            ("one_character", one_character),
-            ("two_or_more_characters", two_or_more_characters),
         ]:
             is_connected = input_links.get(input_name, False)
             if is_connected:
-                # Connected — trust the input, skip validation
                 continue
             try:
                 validate_text_input(value, input_name, node_name)
             except ValueError as e:
                 missing.append(str(e))
+
+        # one_character is always required
+        try:
+            validate_text_input(one_character, "one_character", node_name)
+        except ValueError as e:
+            missing.append(str(e))
+
+        # two_or_more_characters is optional; if empty we will duplicate one_character
+        # so no validation needed
 
         if missing:
             raise ValueError(
@@ -413,7 +421,11 @@ class OneTwoPersonToggle:
         if branch == 0:
             text = join_prompt_parts(one_label, one_character)
         else:
-            text = join_prompt_parts(two_label, one_character, two_or_more_characters)
+            # If two_or_more_characters is empty, duplicate one_character
+            char2 = nonempty_text(two_or_more_characters)
+            if char2 is None:
+                char2 = one_character
+            text = join_prompt_parts(two_label, one_character, char2)
 
         return (text, master_seed, branch)
 
