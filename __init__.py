@@ -5,6 +5,7 @@ from .prompt_engine_nodes import (
     BranchToggle,
     TagJoin,
 )
+from .resolution_node import ResolutionSwitch
 
 NODE_CLASS_MAPPINGS = {
     "SeededTextPool": SeededTextPool,
@@ -12,6 +13,7 @@ NODE_CLASS_MAPPINGS = {
     "FirstOrSecond": FirstOrSecond,
     "BranchToggle": BranchToggle,
     "TagJoin": TagJoin,
+    "ResolutionSwitch": ResolutionSwitch,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -20,6 +22,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "FirstOrSecond": "First OR Second",
     "BranchToggle": "Branch Toggle",
     "TagJoin": "Tag Join",
+    "ResolutionSwitch": "Resolution Switch",
 }
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
