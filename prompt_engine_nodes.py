@@ -189,9 +189,9 @@ class FirstOrMerge:
 
     DESCRIPTION = (
         "Routes from BranchToggle.branch: 0 → solo only; 1 → join_prompt_parts(solo, duo). "
-        "Fixed sockets only. Empty parts are skipped on merge — e.g. leave solo blank and "
-        "wire Char2 into duo to omit Char2 in 1girl mode and include it when branch is 1. "
-        "No seed."
+        "Solo and duo are optional inputs; empty parts are skipped on merge — "
+        "e.g. leave solo blank and wire Char2 into duo to omit Char2 in 1girl mode "
+        "and include it when branch is 1. No seed."
     )
 
     @classmethod
@@ -255,9 +255,9 @@ class FirstOrSecond:
 
     DESCRIPTION = (
         "Routes from BranchToggle.branch: 0 → solo only; 1 → duo only. "
-        "Fixed sockets only. Empty selected path returns empty so TagJoin can skip it — "
-        "e.g. leave solo blank and wire Char2 into duo to omit Char2 in 1girl mode. "
-        "No seed."
+        "Solo and duo are optional inputs; empty selected paths return empty so TagJoin can "
+        "skip them — e.g. leave solo blank and wire Char2 into duo to omit Char2 in 1girl "
+        "mode. No seed."
     )
 
     @classmethod

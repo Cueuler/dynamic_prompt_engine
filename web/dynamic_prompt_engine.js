@@ -389,6 +389,23 @@ function stripUnknownWidgets(node, nodeData) {
   }
 }
 
+/** Normalize SeededTextPool widget values saved by older workflow versions. */
+function migrateSeededTextPoolWidgets(info) {
+  const wv = info?.widgets_values;
+  if (!Array.isArray(wv)) {
+    return;
+  }
+  // Legacy: [stream_key, pool_text] -> [pool_text, false, 0]
+  if (wv.length === 2 && typeof wv[0] === "string" && typeof wv[1] === "string") {
+    info.widgets_values = [wv[1], false, 0];
+    return;
+  }
+  // Old 4-widget: [stream_key, pool_text, bypass_chance, seed] -> [pool_text, bypass_chance, seed]
+  if (wv.length === 4 && typeof wv[0] === "string" && typeof wv[1] === "string") {
+    info.widgets_values = [wv[1], wv[2], wv[3]];
+  }
+}
+
 function registerSchemaSync(nodeType, nodeData) {
   const originalCreated = nodeType.prototype.onNodeCreated;
   nodeType.prototype.onNodeCreated = function () {
@@ -401,7 +418,10 @@ function registerSchemaSync(nodeType, nodeData) {
   };
 
   const originalConfigure = nodeType.prototype.onConfigure;
-  nodeType.prototype.onConfigure = function () {
+  nodeType.prototype.onConfigure = function (info) {
+    if (nodeData.name === "SeededTextPool") {
+      migrateSeededTextPoolWidgets(info);
+    }
     originalConfigure?.apply(this, arguments);
     requestAnimationFrame(() => {
       syncNodeOutputsToSchema(this, nodeData);

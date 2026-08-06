@@ -1,0 +1,2 @@
+# No Python package dependencies; this custom node uses the standard library.
+# ComfyUI and the optional ComfyUI-Impact-Pack are installed separately.
