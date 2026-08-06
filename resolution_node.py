@@ -32,7 +32,7 @@ class ResolutionSwitch:
     RETURN_TYPES = ("INT", "INT", "LATENT", "INT", "INT")
     RETURN_NAMES = ("width", "height", "latent", "scaled_width", "scaled_height")
     FUNCTION = "get_resolution"
-    CATEGORY = "utils/image"
+    CATEGORY = "Dynamic Prompt Engine"
 
     def get_resolution(self, resolution, batch_size, clip_scale):
         # Extract width and height from the string
