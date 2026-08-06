@@ -208,6 +208,8 @@ class FirstOrMerge:
                         "forceInput": True,
                     },
                 ),
+            },
+            "optional": {
                 "solo": (
                     "STRING",
                     {
@@ -272,6 +274,8 @@ class FirstOrSecond:
                         "forceInput": True,
                     },
                 ),
+            },
+            "optional": {
                 "solo": (
                     "STRING",
                     {
@@ -326,7 +330,7 @@ class BranchToggle:
         "(does not prepend 1girl/2girls or merge both inputs). "
         "Put the full solo text in branch_1 and full duo text in branch_2 "
         "(e.g. '1girl, alice' / '2girls, alice, bob'). "
-        "Both inputs are required (empty fails even on 1girl). "
+        "Both inputs are optional; an absent or empty input produces empty output. "
         "Wire branch into FirstOrMerge / FirstOrSecond.branch for other sections. "
         "Outputs text, passthrough seed, and branch (0 or 1)."
     )
@@ -337,6 +341,8 @@ class BranchToggle:
             "required": {
                 "mode": (list(cls.MODE_CHOICES), {"default": "Random"}),
                 "seed": SEED_INPUT,
+            },
+            "optional": {
                 "branch_1": ("STRING", {"default": "", "forceInput": True}),
                 "branch_2": ("STRING", {"default": "", "forceInput": True}),
             },
@@ -363,24 +369,6 @@ class BranchToggle:
                 f"{node_name}: 'seed' must be a valid integer, got {seed!r}."
             )
 
-        missing = []
-        cleaned = {}
-        for input_name, value in [
-            ("branch_1", branch_1),
-            ("branch_2", branch_2),
-        ]:
-            try:
-                cleaned[input_name] = validate_text_input(
-                    value, input_name, node_name
-                )
-            except ValueError as e:
-                missing.append(str(e))
-
-        if missing:
-            raise ValueError(
-                f"{node_name}: missing required inputs:\n" + "\n".join(missing)
-            )
-
         if mode == "Random":
             branch = derive_stream_seed(master_seed, self.STREAM_KEY) % 2
         elif mode == "1girl":
@@ -388,7 +376,7 @@ class BranchToggle:
         else:  # "2girls"
             branch = 1
 
-        chosen = cleaned["branch_1"] if branch == 0 else cleaned["branch_2"]
+        chosen = branch_1 if branch == 0 else branch_2
         text = join_prompt_parts(chosen)
 
         return (text, master_seed, branch)
