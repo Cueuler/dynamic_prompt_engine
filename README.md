@@ -52,7 +52,7 @@ Mode-controlled switch between a solo branch and a multi-person branch.
 | `branch_2` (optional) | Text used when branch = 1 (e.g. character 2) |
 
 ```text
-choice = hash(seed:one_two_person_toggle) % 2
+choice = hash(seed:node:{id}) % 2
 ```
 
 - `0` -> outputs `branch_1`
@@ -81,7 +81,7 @@ Routes `branch` from BranchToggle: `0` -> solo only; `1` -> duo only. Empty sele
 |---------|-----------|
 | Pool choice | `hash(seed:node:{id}) % n` |
 | Bypass chance gate | `hash(seed:node:{id}:gate) % 2` |
-| Branch toggle | `hash(seed:one_two_person_toggle) % 2` (shared) |
+| Branch toggle | `hash(seed:node:{id}) % 2` (per-node) |
 | Seed chain | passthrough INT on seeded nodes only |
 
 ## Install

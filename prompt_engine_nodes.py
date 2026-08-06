@@ -319,12 +319,11 @@ class FirstOrSecond:
 class BranchToggle:
     """Mode-controlled switch that selects branch_1 or branch_2 text."""
 
-    STREAM_KEY = "one_two_person_toggle"
     MODE_CHOICES = ("Random", "1girl", "2girls")
 
     DESCRIPTION = (
         "Branch Toggle: picks branch 0 or 1, then outputs exactly one of the two "
-        "linked strings. mode: Random → hash(seed:one_two_person_toggle) % 2; "
+        "linked strings. mode: Random → hash(seed:node:{id}) % 2; "
         "1girl → 0; 2girls → 1. "
         "Branch 0 → branch_1 only; branch 1 → branch_2 only "
         "(does not prepend 1girl/2girls or merge both inputs). "
@@ -346,6 +345,9 @@ class BranchToggle:
                 "branch_1": ("STRING", {"default": "", "forceInput": True}),
                 "branch_2": ("STRING", {"default": "", "forceInput": True}),
             },
+            "hidden": {
+                "unique_id": "UNIQUE_ID",
+            },
         }
 
     RETURN_TYPES = ("STRING", "INT")
@@ -353,7 +355,7 @@ class BranchToggle:
     FUNCTION = "select_section"
     CATEGORY = "Dynamic Prompt Engine"
 
-    def select_section(self, mode, seed=0, branch_1="", branch_2=""):
+    def select_section(self, mode, seed=0, branch_1="", branch_2="", unique_id=None):
         node_name = self.__class__.__name__
 
         if mode not in self.MODE_CHOICES:
@@ -370,7 +372,8 @@ class BranchToggle:
             )
 
         if mode == "Random":
-            branch = derive_stream_seed(master_seed, self.STREAM_KEY) % 2
+            stream_key = stream_key_from_unique_id(unique_id)
+            branch = derive_stream_seed(master_seed, stream_key) % 2
         elif mode == "1girl":
             branch = 0
         else:  # "2girls"
