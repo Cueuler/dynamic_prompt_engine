@@ -389,21 +389,73 @@ function stripUnknownWidgets(node, nodeData) {
   }
 }
 
-/** Normalize SeededTextPool widget values saved by older workflow versions. */
+/**
+ * Normalize SeededTextPool widget values saved by older workflow versions.
+ * Returns the converted [pool_text, bypass_chance, seed] array, or null when
+ * the values are already in the current format.
+ *
+ * Known legacy layouts:
+ *
+ *   2-element:     [stream_key, pool_text]
+ *   4-element A:   [stream_key, pool_text, bypass_chance (bool), seed (int)]
+ *   4-element B:   [stream_key, pool_text, seed (int), seed_mode (str)]
+ *   5-element C:   [stream_key, pool_text, bypass_chance (bool), seed, seed_mode]
+ *   5-element D:   [stream_key, pool_text, seed (int), seed_mode (str), extra (str)]
+ */
 function migrateSeededTextPoolWidgets(info) {
   const wv = info?.widgets_values;
   if (!Array.isArray(wv)) {
+    return null;
+  }
+  if (typeof wv[0] !== "string" || typeof wv[1] !== "string") {
+    return null;
+  }
+  // Legacy 2-element: [stream_key, pool_text] -> [pool_text, false, 0]
+  if (wv.length === 2) {
+    return [wv[1], false, 0];
+  }
+  // Legacy 4-element
+  if (wv.length === 4) {
+    // Format A: [stream_key, pool_text, bypass_chance (bool), seed] -> [pool_text, bypass_chance, seed]
+    if (typeof wv[2] === "boolean") {
+      return [wv[1], wv[2], wv[3]];
+    }
+    // Format B: [stream_key, pool_text, seed, seed_mode (str)] -> [pool_text, false, seed]
+    if (typeof wv[3] === "string") {
+      return [wv[1], false, wv[2]];
+    }
+  }
+  // Legacy 5-element: old ComfyUI seed widget stores [value, mode]
+  if (wv.length === 5) {
+    // Format C: [stream_key, pool_text, bypass_chance (bool), seed, seed_mode] -> [pool_text, bypass_chance, seed]
+    if (typeof wv[2] === "boolean") {
+      const seed = typeof wv[3] === "number" ? wv[3] : 0;
+      return [wv[1], wv[2], seed];
+    }
+    // Format D: [stream_key, pool_text, seed, seed_mode (str), extra (str)] -> [pool_text, false, seed]
+    if (typeof wv[2] === "number" && typeof wv[3] === "string") {
+      return [wv[1], false, wv[2]];
+    }
+  }
+  return null;
+}
+
+/** Push migrated values into the already-created widgets and their DOM elements. */
+function applyMigratedWidgetValues(node, values) {
+  if (!values) {
     return;
   }
-  // Legacy: [stream_key, pool_text] -> [pool_text, false, 0]
-  if (wv.length === 2 && typeof wv[0] === "string" && typeof wv[1] === "string") {
-    info.widgets_values = [wv[1], false, 0];
-    return;
+  for (let index = 0; index < values.length; index++) {
+    const widget = node.widgets?.[index];
+    if (!widget) {
+      continue;
+    }
+    widget.value = values[index];
+    if (widget.inputEl && typeof widget.inputEl.value === "string") {
+      widget.inputEl.value = String(values[index]);
+    }
   }
-  // Old 4-widget: [stream_key, pool_text, bypass_chance, seed] -> [pool_text, bypass_chance, seed]
-  if (wv.length === 4 && typeof wv[0] === "string" && typeof wv[1] === "string") {
-    info.widgets_values = [wv[1], wv[2], wv[3]];
-  }
+  node.setDirtyCanvas?.(true, true);
 }
 
 function registerSchemaSync(nodeType, nodeData) {
@@ -419,10 +471,19 @@ function registerSchemaSync(nodeType, nodeData) {
 
   const originalConfigure = nodeType.prototype.onConfigure;
   nodeType.prototype.onConfigure = function (info) {
+    let migrated = null;
     if (nodeData.name === "SeededTextPool") {
-      migrateSeededTextPoolWidgets(info);
+      migrated = migrateSeededTextPoolWidgets(info);
+      if (migrated) {
+        // Keep the in-memory node data canonical for re-serialization.
+        info.widgets_values = migrated;
+      }
     }
     originalConfigure?.apply(this, arguments);
+    // ComfyUI fills widget values before onConfigure runs, so mutating
+    // info.widgets_values alone leaves the visible widgets stale. Push the
+    // migrated values into the created widgets explicitly.
+    applyMigratedWidgetValues(this, migrated);
     requestAnimationFrame(() => {
       syncNodeOutputsToSchema(this, nodeData);
       stripUnknownWidgets(this, nodeData);
