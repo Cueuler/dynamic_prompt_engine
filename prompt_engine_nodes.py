@@ -332,7 +332,7 @@ class BranchToggle:
         "(e.g. '1girl, alice' / '2girls, alice, bob'). "
         "Both inputs are optional; an absent or empty input produces empty output. "
         "Wire branch into FirstOrMerge / FirstOrSecond.branch for other sections. "
-        "Outputs text, passthrough seed, and branch (0 or 1)."
+        "Outputs text and branch (0 or 1)."
     )
 
     @classmethod
@@ -348,8 +348,8 @@ class BranchToggle:
             },
         }
 
-    RETURN_TYPES = ("STRING", "INT", "INT")
-    RETURN_NAMES = ("text", "seed", "branch")
+    RETURN_TYPES = ("STRING", "INT")
+    RETURN_NAMES = ("text", "branch")
     FUNCTION = "select_section"
     CATEGORY = "Dynamic Prompt Engine"
 
@@ -379,7 +379,7 @@ class BranchToggle:
         chosen = branch_1 if branch == 0 else branch_2
         text = join_prompt_parts(chosen)
 
-        return (text, master_seed, branch)
+        return (text, branch)
 
 
 class TagJoin:
