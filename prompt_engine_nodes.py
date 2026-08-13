@@ -101,6 +101,24 @@ def join_prompt_parts(*parts):
     return joined
 
 
+MAX_BRANCHES = 15
+
+
+def connected_input_indices(kwargs, prefix, max_count):
+    """Return sorted in-range integer indices present in kwargs under prefix."""
+    indices = []
+    for key in kwargs:
+        if not key.startswith(prefix):
+            continue
+        suffix = key[len(prefix):]
+        if not suffix.isdigit():
+            continue
+        index = int(suffix)
+        if 0 <= index < max_count:
+            indices.append(index)
+    return sorted(indices)
+
+
 SEED_INPUT = (
     "INT",
     {

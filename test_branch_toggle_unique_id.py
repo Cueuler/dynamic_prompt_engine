@@ -4,6 +4,8 @@ import unittest
 from dynamic_prompt_engine.prompt_engine_nodes import (
     BranchToggle,
     SeededTextPool,
+    connected_input_indices,
+    MAX_BRANCHES,
     stream_key_from_unique_id,
 )
 
@@ -136,6 +138,22 @@ class TestSeededTextPoolUniqueId(unittest.TestCase):
         text_1, _ = self.node.select_from_pool(pool, 42, unique_id="55")
         text_2, _ = self.node.select_from_pool(pool, 42, unique_id="55")
         self.assertEqual(text_1, text_2)
+
+
+class TestConnectedInputIndices(unittest.TestCase):
+    def test_extracts_and_sorts_in_range_indices(self):
+        kwargs = {"branch_2": "b", "branch_0": "a", "branch_10": "c", "other": "x"}
+        self.assertEqual(
+            connected_input_indices(kwargs, "branch_", MAX_BRANCHES), [0, 2, 10]
+        )
+
+    def test_ignores_non_numeric_and_out_of_range(self):
+        kwargs = {"branch_abc": "x", "branch_15": "too high", "branch_-1": "neg"}
+        self.assertEqual(connected_input_indices(kwargs, "branch_", MAX_BRANCHES), [])
+
+    def test_ignores_other_prefixes(self):
+        kwargs = {"input_0": "x", "tag_0": "y"}
+        self.assertEqual(connected_input_indices(kwargs, "branch_", MAX_BRANCHES), [])
 
 
 if __name__ == "__main__":
