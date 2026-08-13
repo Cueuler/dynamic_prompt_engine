@@ -3,6 +3,7 @@
 import unittest
 from dynamic_prompt_engine.prompt_engine_nodes import (
     BranchRandomSwitcher,
+    BranchSelector,
     SeededTextPool,
     connected_input_indices,
     MAX_BRANCHES,
@@ -69,6 +70,28 @@ class TestBranchRandomSwitcher(unittest.TestCase):
             if a != b:
                 differing += 1
         self.assertGreater(differing, 0)
+
+
+class TestBranchSelector(unittest.TestCase):
+    def setUp(self):
+        self.node = BranchSelector()
+
+    def test_select_first(self):
+        self.assertEqual(self.node.select(0, input_0="alice", input_1="bob"), ("alice",))
+
+    def test_select_last_border(self):
+        self.assertEqual(self.node.select(14, input_14="bob"), ("bob",))
+
+    def test_select_missing_input_returns_empty(self):
+        self.assertEqual(self.node.select(2, input_0="a"), ("",))
+
+    def test_select_out_of_range_raises(self):
+        with self.assertRaises(ValueError):
+            self.node.select(15)
+
+    def test_select_negative_raises(self):
+        with self.assertRaises(ValueError):
+            self.node.select(-1)
 
 
 class TestStreamKeyFromUniqueId(unittest.TestCase):

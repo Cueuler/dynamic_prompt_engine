@@ -202,14 +202,13 @@ class SeededTextPool:
         return (chosen_text, master_seed)
 
 
-class FirstOrMerge:
-    """Branch 0 → first input only; branch 1 → merge both inputs."""
+class BranchSelector:
+    """Selects the input at the given branch index (N-way)."""
 
     DESCRIPTION = (
-        "Routes from BranchToggle.branch: 0 → solo only; 1 → join_prompt_parts(solo, duo). "
-        "Solo and duo are optional inputs; empty parts are skipped on merge — "
-        "e.g. leave solo blank and wire Char2 into duo to omit Char2 in 1girl mode "
-        "and include it when branch is 1. No seed."
+        "N-way selector: returns the value of input_{branch} (dynamic inputs "
+        "input_0…input_14). An index with no connected input returns an empty "
+        "string. branch must be between 0 and 14. No seed."
     )
 
     @classmethod
@@ -221,30 +220,16 @@ class FirstOrMerge:
                     {
                         "default": 0,
                         "min": 0,
-                        "max": 1,
+                        "max": MAX_BRANCHES - 1,
                         "step": 1,
                         "forceInput": True,
                     },
                 ),
             },
-            "optional": {
-                "solo": (
-                    "STRING",
-                    {
-                        "default": "",
-                        "multiline": True,
-                        "dynamicPrompts": False,
-                    },
-                ),
-                "duo": (
-                    "STRING",
-                    {
-                        "default": "",
-                        "multiline": True,
-                        "dynamicPrompts": False,
-                    },
-                ),
-            },
+            "optional": FlexibleOptionalInputType(
+                "STRING",
+                {"input_0": ("STRING", {"default": "", "forceInput": True})},
+            ),
         }
 
     RETURN_TYPES = ("STRING",)
@@ -252,86 +237,23 @@ class FirstOrMerge:
     FUNCTION = "select"
     CATEGORY = "Dynamic Prompt Engine"
 
-    def select(self, branch, solo="", duo=""):
+    def select(self, branch, **kwargs):
+        node_name = self.__class__.__name__
+
         try:
-            choice = int(branch)
+            index = int(branch)
         except (TypeError, ValueError):
             raise ValueError(
-                f"{self.__class__.__name__}: 'branch' must be 0 or 1, got {branch!r}."
+                f"{node_name}: 'branch' must be a valid integer, got {branch!r}."
             )
-        if choice == 0:
-            return (nonempty_text(solo) or "",)
-        if choice == 1:
-            return (join_prompt_parts(solo, duo),)
-        raise ValueError(
-            f"{self.__class__.__name__}: 'branch' must be 0 or 1, got {choice}."
-        )
 
-
-class FirstOrSecond:
-    """Branch 0 → first input only; branch 1 → second input only."""
-
-    DESCRIPTION = (
-        "Routes from BranchToggle.branch: 0 → solo only; 1 → duo only. "
-        "Solo and duo are optional inputs; empty selected paths return empty so TagJoin can "
-        "skip them — e.g. leave solo blank and wire Char2 into duo to omit Char2 in 1girl "
-        "mode. No seed."
-    )
-
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "branch": (
-                    "INT",
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 1,
-                        "step": 1,
-                        "forceInput": True,
-                    },
-                ),
-            },
-            "optional": {
-                "solo": (
-                    "STRING",
-                    {
-                        "default": "",
-                        "multiline": True,
-                        "dynamicPrompts": False,
-                    },
-                ),
-                "duo": (
-                    "STRING",
-                    {
-                        "default": "",
-                        "multiline": True,
-                        "dynamicPrompts": False,
-                    },
-                ),
-            },
-        }
-
-    RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("text",)
-    FUNCTION = "select"
-    CATEGORY = "Dynamic Prompt Engine"
-
-    def select(self, branch, solo="", duo=""):
-        try:
-            choice = int(branch)
-        except (TypeError, ValueError):
+        if not (0 <= index < MAX_BRANCHES):
             raise ValueError(
-                f"{self.__class__.__name__}: 'branch' must be 0 or 1, got {branch!r}."
+                f"{node_name}: 'branch' must be between 0 and {MAX_BRANCHES - 1}, "
+                f"got {index}."
             )
-        if choice == 0:
-            return (nonempty_text(solo) or "",)
-        if choice == 1:
-            return (nonempty_text(duo) or "",)
-        raise ValueError(
-            f"{self.__class__.__name__}: 'branch' must be 0 or 1, got {choice}."
-        )
+
+        return (nonempty_text(kwargs.get(f"input_{index}")) or "",)
 
 
 class BranchRandomSwitcher:
