@@ -25,7 +25,7 @@ function connectedNodeTitle(node, input) {
   return title || null;
 }
 
-function createDynamicSocketHelpers(prefix) {
+function createDynamicSocketHelpers(prefix, maxCount = Number.POSITIVE_INFINITY) {
   function slotNumber(name) {
     return Number.parseInt(name.slice(prefix.length), 10);
   }
@@ -64,7 +64,7 @@ function createDynamicSocketHelpers(prefix) {
       -1,
     );
     // Connected slot + one spare; none connected → a single empty socket.
-    return Math.max(1, highestConnected + 2);
+    return Math.min(maxCount, Math.max(1, highestConnected + 2));
   }
 
   function setVisibleInputs(node, count) {
@@ -92,7 +92,10 @@ function createDynamicSocketHelpers(prefix) {
   };
 }
 
+const MAX_BRANCHES = 15;
 const tagSockets = createDynamicSocketHelpers("tag_");
+const branchSockets = createDynamicSocketHelpers("branch_", MAX_BRANCHES);
+const inputSockets = createDynamicSocketHelpers("input_", MAX_BRANCHES);
 
 const PREVIEW_DOM_INSET = 24;
 const PREVIEW_CHROME_PAD = 24;
@@ -339,10 +342,9 @@ function registerDynamicStringNode(nodeType, sockets, options = {}) {
 
 const ENGINE_NODE_NAMES = new Set([
   "SeededTextPool",
-  "BranchToggle",
+  "BranchRandomSwitcher",
   "TagJoin",
-  "FirstOrMerge",
-  "FirstOrSecond",
+  "BranchSelector",
 ]);
 
 function expectedOutputCount(nodeData) {
@@ -502,6 +504,10 @@ app.registerExtension({
       registerDynamicStringNode(nodeType, tagSockets, {
         withOutputPreview: true,
       });
+    } else if (nodeData.name === "BranchRandomSwitcher") {
+      registerDynamicStringNode(nodeType, branchSockets);
+    } else if (nodeData.name === "BranchSelector") {
+      registerDynamicStringNode(nodeType, inputSockets);
     }
 
     // After dynamic-socket wrappers so schema sync runs last on create/configure.
