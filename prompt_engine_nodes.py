@@ -135,12 +135,24 @@ class SeededTextPool:
     """Selects a deterministic text candidate from a multiline library based on seed + node id."""
 
     DESCRIPTION = (
-        "Picks one line from pool_text using hash(seed:node:{id}) % n "
-        "(independent stream per node). Blank/whitespace-only lines are skipped "
-        "and never chosen; only non-empty lines count as candidates. Supports "
-        "Impact Pack {a|b} / __wildcard__ on the chosen line; [empty] emits blank. "
-        "Bypass chance 50% can emit empty via a separate …:gate hash; Off never "
-        "gates. Outputs text and passthrough seed."
+        "Picks one line from pool_text. Choice is hash(seed:node:{id}) % n, so "
+        "two copies of this node with the same seed can still pick different "
+        "lines. Outputs: text, and seed unchanged.\n"
+        "\n"
+        "Candidates: split on newlines, strip each line, drop blank/whitespace "
+        "lines. Only remaining lines are in the pool.\n"
+        "\n"
+        "Bypass chance Off: never gates. 50%: hash(seed:node:{id}:gate) % 2 == 0 "
+        "returns empty text (this check runs even if the pool is empty).\n"
+        "\n"
+        "Examples: pool 'alice\\nbob\\ncharlie' → one of those three, stable for "
+        "the same seed+node. 'alice\\n\\n  \\nbob' → only alice and bob. Chosen "
+        "line '[empty]' → empty string. Empty pool → empty string.\n"
+        "\n"
+        "Edge cases: the literal line [empty] is a candidate that emits blank "
+        "(not skipped). Impact Pack {a|b} / __wildcard__ runs only on the chosen "
+        "line and requires ComfyUI-Impact-Pack (raises if missing). Seed is "
+        "passed through even when text is empty."
     )
 
     @classmethod
@@ -206,9 +218,24 @@ class BranchSelector:
     """Selects the input at the given branch index (N-way)."""
 
     DESCRIPTION = (
-        "N-way selector: returns the value of input_{branch} (dynamic inputs "
-        "input_0…input_14). An index with no connected input returns an empty "
-        "string. branch must be between 0 and 14. No seed."
+        "Returns input_{branch} (sockets input_0…input_14). The branch integer "
+        "is a socket index, not 'the Nth wired input'. No seed. Wire Branch "
+        "Random Switcher's branch output here so the numbers match "
+        "(branch_2 → input_2).\n"
+        "\n"
+        "Not connected (socket unwired): text is 'branch {n} skipped', e.g. "
+        "'branch 2 skipped'.\n"
+        "Connected with an empty or whitespace-only string: that empty string "
+        "is passed through (not skipped). Tag Join will drop it.\n"
+        "Connected with text: that string, whitespace-stripped.\n"
+        "\n"
+        "Examples: branch=1 and input_1='bob' → 'bob'. Switcher has 3 branches "
+        "and this node only has input_0 and input_1 → pick 2 yields "
+        "'branch 2 skipped'. input_2 wired to '' → ''.\n"
+        "\n"
+        "Edge cases: branch outside 0…14 raises. Whitespace-only connected "
+        "values become ''. 'branch N skipped' is real text; Tag Join will "
+        "include it if you wire this output into a join."
     )
 
     @classmethod
@@ -253,19 +280,37 @@ class BranchSelector:
                 f"got {index}."
             )
 
-        return (nonempty_text(kwargs.get(f"input_{index}")) or "",)
+        key = f"input_{index}"
+        if key not in kwargs or kwargs.get(key) is None:
+            return (f"branch {index} skipped",)
+        return (nonempty_text(kwargs.get(key)) or "",)
 
 
 class BranchRandomSwitcher:
     """Randomly selects one connected branch and outputs its text and index."""
 
     DESCRIPTION = (
-        "Random branch switch with up to 15 dynamic inputs (branch_0…branch_14). "
-        "Connected inputs (physically wired) form the rotation; an empty-valued "
-        "input is still eligible, and unplugging a socket removes it. 0 connected "
-        "→ branch is 0 or 1 (seeded) with empty text; 1 connected → always that "
-        "branch; 2+ connected → a seeded pick among them. Outputs text and the "
-        "chosen branch index (0…14)."
+        "Seeded pick among wired branch_0…branch_14 sockets (max 15). Outputs "
+        "text and branch (the socket index 0…14, not 'Nth wire'). Same seed+"
+        "node id is deterministic; different node ids can differ. Unplug a "
+        "socket to drop it from the rotation.\n"
+        "\n"
+        "0 wired: text is empty; branch is hash(seed:node:{id}) % 2 (0 or 1).\n"
+        "1 wired: branch is that socket's index (only branch_5 → always 5); "
+        "text is that value after comma hygiene.\n"
+        "2+ wired: seeded pick among those indices; text is the chosen value "
+        "after comma hygiene (strip empty/whitespace, strip extra commas, "
+        "join with ', ' and a trailing ', ' when non-empty).\n"
+        "\n"
+        "Examples: branch_0=red, branch_1=blue, branch_2=green → branch is 0, 1, "
+        "or 2 and text is 'red, ' / 'blue, ' / 'green, '. Only branch_5 wired "
+        "→ always branch=5.\n"
+        "\n"
+        "Edge cases: a wired empty string still counts as connected; if picked, "
+        "text is '' and branch is that index (selector should pass '' through "
+        "if the matching input is also wired). 0 wired still emits branch 0 or "
+        "1, so a selector may return 'branch 1 skipped' if input_1 is unwired. "
+        "Match selector input_N to switcher branch_N."
     )
 
     @classmethod
@@ -319,11 +364,22 @@ class TagJoin:
     """Joins connected tag strings in input order and displays the resulting text."""
 
     DESCRIPTION = (
-        "Concatenates connected tag_N strings in numeric order. Skips empty/"
-        "whitespace tags and strips leading/trailing commas/spaces from each part; "
-        "joins with ', ' and ends with ', ' when non-empty. Always shows a multiline "
-        "text preview (placeholder until run; filled after execution — not a tag "
-        "input). Dynamic sockets: connected tags + one spare. No seed. Outputs prompt."
+        "Joins wired tag_N strings in numeric index order (tag_0, tag_1, …; "
+        "tag_10 after tag_2). Dynamic sockets: connected tags + one spare. No "
+        "seed. The multiline text widget is a preview only (filled after run), "
+        "not a tag input. Output: prompt.\n"
+        "\n"
+        "Each tag: skip if empty/whitespace; strip leading/trailing commas and "
+        "spaces; skip again if nothing remains. Join survivors with ', ' and "
+        "add a trailing ', ' when the result is non-empty. All empty → ''.\n"
+        "\n"
+        "Examples: tag_0='red', tag_1='blue' → 'red, blue, '. tag_0='', "
+        "tag_1='blue' → 'blue, '. tag_0='red,', tag_1=', blue' → 'red, blue, '. "
+        "tag_0 and tag_2 wired, tag_1 empty/unwired → join 0 then 2.\n"
+        "\n"
+        "Edge cases: a selector marker like 'branch 2 skipped' is non-empty, so "
+        "it is included in the prompt. Holes in tag indices are allowed; order "
+        "is by number, not socket position."
     )
 
     @classmethod

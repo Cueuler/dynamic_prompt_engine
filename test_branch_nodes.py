@@ -83,8 +83,11 @@ class TestBranchSelector(unittest.TestCase):
     def test_select_last_border(self):
         self.assertEqual(self.node.select(14, input_14="bob"), ("bob",))
 
-    def test_select_missing_input_returns_empty(self):
-        self.assertEqual(self.node.select(2, input_0="a"), ("",))
+    def test_select_missing_input_returns_skipped(self):
+        self.assertEqual(self.node.select(2, input_0="a"), ("branch 2 skipped",))
+
+    def test_select_empty_connected_input_returns_empty(self):
+        self.assertEqual(self.node.select(1, input_1=""), ("",))
 
     def test_select_out_of_range_raises(self):
         with self.assertRaises(ValueError):

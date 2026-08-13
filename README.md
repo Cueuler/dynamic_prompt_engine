@@ -4,6 +4,20 @@ ComfyUI custom nodes for modular, seed-reproducible prompt building. Editable mu
 
 Clone directly into `ComfyUI/custom_nodes/` -- no symlinks or copying needed.
 
+## Breaking Change
+
+The branch-node replacement is not backward compatible with saved workflows. The
+following legacy nodes were removed and are no longer registered:
+
+- `BranchToggle`
+- `FirstOrMerge`
+- `FirstOrSecond`
+
+Workflows containing these nodes must be rebuilt manually using `BranchRandomSwitcher`
+and `BranchSelector`. Their old socket layouts and links are not migrated automatically.
+`FirstOrMerge` also had branch-specific merge behavior that has no direct equivalent in
+the generic selector; reproduce that behavior with the appropriate `Tag Join` nodes.
+
 ## Architecture
 
 ```mermaid
@@ -30,39 +44,81 @@ Category: **Dynamic Prompt Engine**
 | **Branch Random Switcher** | `seed` | `branch_0`...`branch_14` | `text`, `branch` |
 | **Branch Selector** | `branch` | `input_0`...`input_14` | `text` |
 | **Tag Join** | `text` preview | dynamic `tag_0`... | `prompt` |
+| **Resolution Switch** | `resolution`, `batch_size`, `clip_scale` | -- | `width`, `height`, `latent`, `scaled_width`, `scaled_height` |
 
 ### Seeded Text Pool
 
-- Candidates: one non-empty line per entry in `pool_text` (`[empty]` emits an empty string).
-- Choice: `hash(seed:node:{id}) % line_count` (independent stream per node instance).
-- Supports Impact Pack `{a|b}` / `__wildcard__` expansion on the chosen line.
-- `bypass_chance` **50%**: half the time emits empty via a separate `...:gate` hash; **Off** never gates.
-- Passes `seed` through unchanged.
+Picks one line from `pool_text`. Choice is `hash(seed:node:{id}) % n`, so two copies of this node with the same seed can still pick different lines. Outputs `text` and passes `seed` through unchanged.
+
+- Candidates: split on newlines, strip, drop blank/whitespace lines.
+- `bypass_chance` **Off**: never gates. **50%**: `hash(seed:node:{id}:gate) % 2 == 0` returns empty text (runs even if the pool is empty).
+- Literal line `[empty]` is a candidate that emits `""`.
+- Impact Pack `{a|b}` / `__wildcard__` runs only on the chosen line and requires ComfyUI-Impact-Pack.
+
+Examples:
+
+- `alice\nbob\ncharlie` → one of those three, stable for the same seed+node.
+- `alice\n\n  \nbob` → only alice and bob are candidates.
+- Empty pool, or bypass gate even → `""`.
 
 ### Branch Random Switcher
 
-Seeded random switch over up to 15 dynamic inputs (`branch_0`...`branch_14`). The rotation is the set of connected inputs — unplug a socket to remove it, or wire a single input to always return it.
+Seeded pick among wired `branch_0`...`branch_14` sockets (max 15). Outputs `text` and `branch` (the **socket index**, not "Nth wire"). Unplug a socket to drop it from the rotation. A wired empty string still counts as connected.
 
 ```text
 connected = sorted indices of wired branch_N inputs
 ```
 
-- **0 connected** → `branch = hash(seed:node:{id}) % 2` (0 or 1); `text` is empty.
-- **1 connected** → `branch = that index`; `text` is that input's value.
-- **2+ connected** → `branch` is a seeded pick from the connected set; `text` is that input's value.
+- **0 wired** → `text` is `""`; `branch = hash(seed:node:{id}) % 2` (0 or 1).
+- **1 wired** → `branch` is that socket's index (only `branch_5` → always 5); `text` is that value after comma hygiene.
+- **2+ wired** → seeded pick among those indices; `text` is the chosen value after comma hygiene (strip empty/whitespace, strip extra commas, join with `", "` and a trailing `", "` when non-empty).
 
-Outputs `text` and the chosen `branch` index (0...14). Wire `branch` into **Branch Selector** for section routing.
+Examples:
+
+- `branch_0=red`, `branch_1=blue`, `branch_2=green` → `branch` is 0, 1, or 2; `text` is `"red, "` / `"blue, "` / `"green, "`.
+- Only `branch_5` wired → always `branch=5`.
+- `branch_2` wired to `""` and picked → `text=""`, `branch=2` (selector passes `""` through if `input_2` is also wired).
+- Nothing wired → `text=""` and `branch` 0 or 1, so a selector may return `branch 1 skipped` if `input_1` is unwired.
+
+Match selector `input_N` to switcher `branch_N`.
 
 ### Branch Selector
 
-N-way selector: returns the value of `input_{branch}` (dynamic inputs `input_0`...`input_14`). An index with no connected input returns an empty string (Tag Join skips it). `branch` must be 0...14.
+Returns `input_{branch}` (`input_0`...`input_14`). The integer is a socket index. No seed. `branch` must be 0...14 (otherwise raises).
+
+- Socket **unwired** → `"branch {n} skipped"` (e.g. `branch 2 skipped`).
+- Socket **wired** to empty/whitespace → `""` passed through (Tag Join drops it).
+- Socket **wired** to text → that string, whitespace-stripped.
+
+Examples:
+
+- `branch=1`, `input_1=bob` → `"bob"`.
+- Switcher has 3 branches, selector only `input_0` and `input_1`, pick 2 → `"branch 2 skipped"`.
+- `input_2` wired to `""` → `""`.
+
+`"branch N skipped"` is real text; Tag Join will include it if you wire this output into a join.
 
 ### Tag Join
 
-- Concatenates connected `tag_N` strings in numeric order (dynamic sockets: connected tags + one spare).
-- Always shows a multiline `text` preview (placeholder until run; filled after execution).
-- No seed input/output.
-- Output is the joined `prompt` string.
+Joins wired `tag_N` strings in numeric index order (`tag_10` after `tag_2`). Dynamic sockets: connected tags + one spare. No seed. The multiline `text` widget is a preview only (filled after run), not a tag input. Output: `prompt`.
+
+- Skip empty/whitespace tags; strip leading/trailing commas and spaces; skip again if nothing remains.
+- Join survivors with `", "` and add a trailing `", "` when non-empty. All empty → `""`.
+
+Examples:
+
+- `tag_0=red`, `tag_1=blue` → `"red, blue, "`.
+- `tag_0=""`, `tag_1=blue` → `"blue, "`.
+- `tag_0=red,`, `tag_1=, blue` → `"red, blue, "`.
+- `tag_0` and `tag_2` wired, `tag_1` empty/unwired → join 0 then 2.
+
+A selector marker like `branch 2 skipped` is non-empty, so it is included in the prompt.
+
+### Resolution Switch
+
+Picks width/height from a preset (`W x H (ratio)`), builds an empty latent `[batch_size, 4, height/8, width/8]`, and outputs CLIP-scaled sizes `int(dimension * clip_scale)`.
+
+Examples: 1024×1024 with `clip_scale=2` → scaled 2048×2048. Scaled sizes truncate to int.
 
 ### Seeding summary
 

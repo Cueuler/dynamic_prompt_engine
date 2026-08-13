@@ -1,6 +1,21 @@
 import torch
 
 class ResolutionSwitch:
+    DESCRIPTION = (
+        "Picks width/height from a preset string and builds an empty latent. "
+        "Also outputs CLIP-scaled dimensions.\n"
+        "\n"
+        "Parse 'W x H (ratio)', e.g. '1024 x 1024 (1:1)' → width=1024, "
+        "height=1024. scaled_width/scaled_height = int(dimension * clip_scale). "
+        "Latent is zeros with shape [batch_size, 4, height/8, width/8].\n"
+        "\n"
+        "Examples: 1024×1024 and clip_scale=2 → scaled 2048×2048. "
+        "832×1216 and clip_scale=1 → scaled 832×1216.\n"
+        "\n"
+        "Edge cases: integer truncation on scaled size (1152 * 1.5 → 1728). "
+        "Latent spatial size uses height//8 and width//8. batch_size is 1…4096."
+    )
+
     @classmethod
     def INPUT_TYPES(s):
         return {
