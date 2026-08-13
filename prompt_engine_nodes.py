@@ -334,35 +334,28 @@ class FirstOrSecond:
         )
 
 
-class BranchToggle:
-    """Mode-controlled switch that selects branch_1 or branch_2 text."""
-
-    MODE_CHOICES = ("Random", "1girl", "2girls")
+class BranchRandomSwitcher:
+    """Randomly selects one connected branch and outputs its text and index."""
 
     DESCRIPTION = (
-        "Branch Toggle: picks branch 0 or 1, then outputs exactly one of the two "
-        "linked strings. mode: Random → hash(seed:node:{id}) % 2; "
-        "1girl → 0; 2girls → 1. "
-        "Branch 0 → branch_1 only; branch 1 → branch_2 only "
-        "(does not prepend 1girl/2girls or merge both inputs). "
-        "Put the full solo text in branch_1 and full duo text in branch_2 "
-        "(e.g. '1girl, alice' / '2girls, alice, bob'). "
-        "Both inputs are optional; an absent or empty input produces empty output. "
-        "Wire branch into FirstOrMerge / FirstOrSecond.branch for other sections. "
-        "Outputs text and branch (0 or 1)."
+        "Random branch switch with up to 15 dynamic inputs (branch_0…branch_14). "
+        "Connected inputs (physically wired) form the rotation; an empty-valued "
+        "input is still eligible, and unplugging a socket removes it. 0 connected "
+        "→ branch is 0 or 1 (seeded) with empty text; 1 connected → always that "
+        "branch; 2+ connected → a seeded pick among them. Outputs text and the "
+        "chosen branch index (0…14)."
     )
 
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "mode": (list(cls.MODE_CHOICES), {"default": "Random"}),
                 "seed": SEED_INPUT,
             },
-            "optional": {
-                "branch_1": ("STRING", {"default": "", "forceInput": True}),
-                "branch_2": ("STRING", {"default": "", "forceInput": True}),
-            },
+            "optional": FlexibleOptionalInputType(
+                "STRING",
+                {"branch_0": ("STRING", {"default": "", "forceInput": True})},
+            ),
             "hidden": {
                 "unique_id": "UNIQUE_ID",
             },
@@ -370,17 +363,11 @@ class BranchToggle:
 
     RETURN_TYPES = ("STRING", "INT")
     RETURN_NAMES = ("text", "branch")
-    FUNCTION = "select_section"
+    FUNCTION = "select_branch"
     CATEGORY = "Dynamic Prompt Engine"
 
-    def select_section(self, mode, seed=0, branch_1="", branch_2="", unique_id=None):
+    def select_branch(self, seed=0, unique_id=None, **kwargs):
         node_name = self.__class__.__name__
-
-        if mode not in self.MODE_CHOICES:
-            raise ValueError(
-                f"{node_name}: 'mode' must be one of {set(self.MODE_CHOICES)}, "
-                f"got '{mode}'."
-            )
 
         try:
             master_seed = int(seed)
@@ -389,16 +376,19 @@ class BranchToggle:
                 f"{node_name}: 'seed' must be a valid integer, got {seed!r}."
             )
 
-        if mode == "Random":
-            stream_key = stream_key_from_unique_id(unique_id)
-            branch = derive_stream_seed(master_seed, stream_key) % 2
-        elif mode == "1girl":
-            branch = 0
-        else:  # "2girls"
-            branch = 1
+        connected = connected_input_indices(kwargs, "branch_", MAX_BRANCHES)
+        stream_key = stream_key_from_unique_id(unique_id)
 
-        chosen = branch_1 if branch == 0 else branch_2
-        text = join_prompt_parts(chosen)
+        if not connected:
+            branch = derive_stream_seed(master_seed, stream_key) % 2
+            text = ""
+        elif len(connected) == 1:
+            branch = connected[0]
+            text = join_prompt_parts(kwargs[f"branch_{branch}"])
+        else:
+            choice = derive_stream_seed(master_seed, stream_key) % len(connected)
+            branch = connected[choice]
+            text = join_prompt_parts(kwargs[f"branch_{branch}"])
 
         return (text, branch)
 
