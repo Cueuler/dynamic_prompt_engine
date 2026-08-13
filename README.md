@@ -1,6 +1,6 @@
 # Dynamic Prompt Engine
 
-ComfyUI custom nodes for modular, seed-reproducible prompt building. Editable multiline pools, a branch toggle for 1girl/2girls composition, and fixed 2-way section switches.
+ComfyUI custom nodes for modular, seed-reproducible prompt building. Editable multiline pools, a seeded random branch switcher with dynamic inputs, and an N-way branch selector.
 
 Clone directly into `ComfyUI/custom_nodes/` -- no symlinks or copying needed.
 
@@ -9,16 +9,16 @@ Clone directly into `ComfyUI/custom_nodes/` -- no symlinks or copying needed.
 ```mermaid
 flowchart LR
   rootPool["SeededTextPool seed_widget"] -->|"seed"| pools[OtherPools]
-  rootPool -->|"seed"| toggle[BranchToggle]
+  rootPool -->|"seed"| switcher[BranchRandomSwitcher]
   pools --> joins[TagJoins]
-  toggle -->|"branch"| select[FirstOrMerge / FirstOrSecond]
-  select --> joins
+  switcher -->|"branch"| selector[BranchSelector]
+  selector --> joins
   joins -->|"prompt"| finalPrompt[OrderedPrompt]
 ```
 
-**Seeded** nodes (**Seeded Text Pool**, **Branch Toggle**) accept `seed` and output the same `seed` so you can fan-out or daisy-chain. **First Or Merge**, **First Or Second**, and **Tag Join** do not use seed.
+**Seeded** nodes (**Seeded Text Pool**, **Branch Random Switcher**) accept `seed` for deterministic selection. **Branch Selector** and **Tag Join** do not use seed.
 
-Empty or whitespace-only STRING inputs are skipped on merge/join. Tag-like joins strip leading/trailing `,` and spaces from each part, then join with ", " and end with ", " when non-empty.
+Empty or whitespace-only STRING inputs are skipped on join. Tag-like joins strip leading/trailing `,` and spaces from each part, then join with ", " and end with ", " when non-empty.
 
 ## Custom nodes
 
@@ -27,9 +27,8 @@ Category: **Dynamic Prompt Engine**
 | Node | Required inputs | Optional inputs | Outputs |
 |------|----------------|-----------------|---------|
 | **Seeded Text Pool** | `pool_text`, `bypass_chance`, `seed` | -- | `text`, `seed` |
-| **Branch Toggle** | `mode`, `seed` | `branch_1`, `branch_2` | `text`, `seed`, `branch` |
-| **First Or Merge** | `branch` | `solo`, `duo` | `text` |
-| **First Or Second** | `branch` | `solo`, `duo` | `text` |
+| **Branch Random Switcher** | `seed` | `branch_0`...`branch_14` | `text`, `branch` |
+| **Branch Selector** | `branch` | `input_0`...`input_14` | `text` |
 | **Tag Join** | `text` preview | dynamic `tag_0`... | `prompt` |
 
 ### Seeded Text Pool
@@ -40,33 +39,23 @@ Category: **Dynamic Prompt Engine**
 - `bypass_chance` **50%**: half the time emits empty via a separate `...:gate` hash; **Off** never gates.
 - Passes `seed` through unchanged.
 
-### Branch Toggle
+### Branch Random Switcher
 
-Mode-controlled switch between a solo branch and a multi-person branch.
-
-| Input | Role |
-|-------|------|
-| `mode` | `Random` / `1girl` / `2girls` |
-| `seed` | Used when `mode` is Random; also passed through |
-| `branch_1` (optional) | Text used when branch = 0 (e.g. character 1) |
-| `branch_2` (optional) | Text used when branch = 1 (e.g. character 2) |
+Seeded random switch over up to 15 dynamic inputs (`branch_0`...`branch_14`). The rotation is the set of connected inputs — unplug a socket to remove it, or wire a single input to always return it.
 
 ```text
-choice = hash(seed:node:{id}) % 2
+connected = sorted indices of wired branch_N inputs
 ```
 
-- `0` -> outputs `branch_1`
-- `1` -> outputs `branch_2`
+- **0 connected** → `branch = hash(seed:node:{id}) % 2` (0 or 1); `text` is empty.
+- **1 connected** → `branch = that index`; `text` is that input's value.
+- **2+ connected** → `branch` is a seeded pick from the connected set; `text` is that input's value.
 
-Wire `branch` into **First Or Merge** / **First Or Second** for section routing. Optional inputs left disconnected or empty produce empty output.
+Outputs `text` and the chosen `branch` index (0...14). Wire `branch` into **Branch Selector** for section routing.
 
-### First Or Merge
+### Branch Selector
 
-Routes `branch` from BranchToggle: `0` -> solo only; `1` -> `join_prompt_parts(solo, duo)`. Empty inputs are skipped on merge -- leave solo blank and wire Char2 into duo to omit Char2 when branch is 0 and include it when branch is 1.
-
-### First Or Second
-
-Routes `branch` from BranchToggle: `0` -> solo only; `1` -> duo only. Empty selected path returns empty (Tag Join skips it). Use solo blank + duo = Char2 section to omit Char2 when branch is 0.
+N-way selector: returns the value of `input_{branch}` (dynamic inputs `input_0`...`input_14`). An index with no connected input returns an empty string (Tag Join skips it). `branch` must be 0...14.
 
 ### Tag Join
 
@@ -81,8 +70,9 @@ Routes `branch` from BranchToggle: `0` -> solo only; `1` -> duo only. Empty sele
 |---------|-----------|
 | Pool choice | `hash(seed:node:{id}) % n` |
 | Bypass chance gate | `hash(seed:node:{id}:gate) % 2` |
-| Branch toggle | `hash(seed:node:{id}) % 2` (per-node) |
-| Seed chain | passthrough INT on seeded nodes only |
+| Branch random switch | seeded pick among connected branch indices |
+| Branch selector | direct index lookup (no seed) |
+| Seed chain | passthrough INT on Seeded Text Pool only |
 
 ## Install
 
