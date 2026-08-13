@@ -1,4 +1,4 @@
-import { app } from "../../../scripts/app.js";
+import { app } from "../../scripts/app.js";
 
 const OUTPUT_WIDTH = 160;
 const OUTPUT_HEIGHT = 80;
@@ -27,7 +27,11 @@ function connectedNodeTitle(node, input) {
 
 function createDynamicSocketHelpers(prefix, maxCount = Number.POSITIVE_INFINITY) {
   function slotNumber(name) {
-    return Number.parseInt(name.slice(prefix.length), 10);
+    const suffix = typeof name === "string" ? name.slice(prefix.length) : "";
+    if (!/^\d+$/.test(suffix)) {
+      return Number.NaN;
+    }
+    return Number.parseInt(suffix, 10);
   }
 
   function isDynamicInput(input) {
@@ -36,6 +40,14 @@ function createDynamicSocketHelpers(prefix, maxCount = Number.POSITIVE_INFINITY)
 
   function inputName(index) {
     return `${prefix}${index}`;
+  }
+
+  function removeInputSlot(node, input) {
+    const index = node.inputs?.indexOf(input) ?? -1;
+    if (index < 0) {
+      return;
+    }
+    node.removeInput(index);
   }
 
   function refreshInputLabels(node) {
@@ -58,28 +70,51 @@ function createDynamicSocketHelpers(prefix, maxCount = Number.POSITIVE_INFINITY)
 
   function visibleCount(node) {
     const slots = (node.inputs ?? []).filter(isDynamicInput);
-    const highestConnected = slots.reduce(
-      (highest, input) =>
-        input.link != null ? Math.max(highest, slotNumber(input.name)) : highest,
-      -1,
-    );
+    const highestConnected = slots.reduce((highest, input) => {
+      if (input.link == null) {
+        return highest;
+      }
+      const index = slotNumber(input.name);
+      return Number.isInteger(index) ? Math.max(highest, index) : highest;
+    }, -1);
     // Connected slot + one spare; none connected → a single empty socket.
     return Math.min(maxCount, Math.max(1, highestConnected + 2));
   }
 
   function setVisibleInputs(node, count) {
-    const current = (node.inputs ?? []).filter(isDynamicInput);
-    for (let index = current.length - 1; index >= count; index--) {
-      const input = current[index];
-      if (input.link == null) {
-        node.removeInput(node.inputs.indexOf(input));
+    const byIndex = new Map();
+    for (const input of node.inputs ?? []) {
+      if (!isDynamicInput(input)) {
+        continue;
+      }
+      const index = slotNumber(input.name);
+      if (Number.isInteger(index)) {
+        byIndex.set(index, input);
       }
     }
 
-    let currentCount = (node.inputs ?? []).filter(isDynamicInput).length;
-    while (currentCount < count) {
-      node.addInput(inputName(currentCount), "STRING");
-      currentCount++;
+    for (const [index, input] of [...byIndex.entries()]) {
+      if (index < maxCount) {
+        continue;
+      }
+      if (input?.link != null) {
+        graphOf(node)?.removeLink?.(input.link);
+      }
+      removeInputSlot(node, input);
+      byIndex.delete(index);
+    }
+
+    for (const [index, input] of [...byIndex.entries()]) {
+      if (index >= count && input.link == null) {
+        removeInputSlot(node, input);
+        byIndex.delete(index);
+      }
+    }
+
+    for (let index = 0; index < count; index++) {
+      if (!byIndex.has(index)) {
+        node.addInput(inputName(index), "STRING");
+      }
     }
     refreshInputLabels(node);
   }
@@ -326,17 +361,11 @@ function registerDynamicStringNode(nodeType, sockets, options = {}) {
       sockets.refreshInputLabels(this);
       if (withOutputPreview) {
         stylePreviewWidget(this);
-        fitPreviewWidget(this, "resize");
+        fitPreviewWidget(this, "content");
       }
       applyDefaultComputedSize(this);
     });
     return result;
-  };
-
-  const originalDrawForeground = nodeType.prototype.onDrawForeground;
-  nodeType.prototype.onDrawForeground = function () {
-    sockets.refreshInputLabels(this);
-    return originalDrawForeground?.apply(this, arguments);
   };
 }
 
@@ -379,16 +408,61 @@ function syncNodeOutputsToSchema(node, nodeData) {
   }
 }
 
+function looksLikeSeparator(value) {
+  return typeof value === "string" && /^[\s,]*$/.test(value);
+}
+
 /** Drop widgets removed from the Python schema (e.g. TagJoin separator). */
 function stripUnknownWidgets(node, nodeData) {
   if (nodeData?.name !== "TagJoin" || !Array.isArray(node.widgets)) {
     return;
   }
+  const text = previewWidget(node);
   for (let i = node.widgets.length - 1; i >= 0; i--) {
-    if (node.widgets[i]?.name === "separator") {
+    const widget = node.widgets[i];
+    if (widget?.name !== "separator") {
+      continue;
+    }
+    if (
+      text &&
+      looksLikeSeparator(text.value) &&
+      typeof widget.value === "string" &&
+      !looksLikeSeparator(widget.value)
+    ) {
+      text.value = widget.value;
+      if (text.inputEl && typeof text.inputEl.value === "string") {
+        text.inputEl.value = String(widget.value);
+      }
+    }
+    if (typeof node.removeWidget === "function") {
+      node.removeWidget(widget);
+    } else {
       node.widgets.splice(i, 1);
     }
   }
+}
+
+/**
+ * Normalize TagJoin widget values saved by older workflow versions that had a
+ * separator widget. Returns `[prompt]` or null when already in the current format.
+ */
+function migrateTagJoinWidgets(info) {
+  const wv = info?.widgets_values;
+  if (!Array.isArray(wv) || wv.length !== 2) {
+    return null;
+  }
+  if (typeof wv[0] !== "string" || typeof wv[1] !== "string") {
+    return null;
+  }
+  const firstSep = looksLikeSeparator(wv[0]);
+  const secondSep = looksLikeSeparator(wv[1]);
+  if (firstSep && !secondSep) {
+    return [wv[1]];
+  }
+  if (secondSep && !firstSep) {
+    return [wv[0]];
+  }
+  return null;
 }
 
 /**
@@ -480,12 +554,27 @@ function registerSchemaSync(nodeType, nodeData) {
         // Keep the in-memory node data canonical for re-serialization.
         info.widgets_values = migrated;
       }
+    } else if (nodeData.name === "TagJoin") {
+      migrated = migrateTagJoinWidgets(info);
+      if (migrated) {
+        info.widgets_values = migrated;
+      }
     }
     originalConfigure?.apply(this, arguments);
     // ComfyUI fills widget values before onConfigure runs, so mutating
     // info.widgets_values alone leaves the visible widgets stale. Push the
     // migrated values into the created widgets explicitly.
     applyMigratedWidgetValues(this, migrated);
+    if (migrated && nodeData.name === "TagJoin") {
+      const text = previewWidget(this);
+      if (text) {
+        text.value = migrated[0];
+        if (text.inputEl && typeof text.inputEl.value === "string") {
+          text.inputEl.value = String(migrated[0]);
+        }
+      }
+    }
+    stripUnknownWidgets(this, nodeData);
     requestAnimationFrame(() => {
       syncNodeOutputsToSchema(this, nodeData);
       stripUnknownWidgets(this, nodeData);

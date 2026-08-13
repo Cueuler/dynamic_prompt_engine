@@ -4,14 +4,17 @@ from .prompt_engine_nodes import (
     BranchSelector,
     TagJoin,
 )
-from .resolution_node import ResolutionSwitch
+
+try:
+    from .resolution_node import ResolutionSwitch
+except ImportError:
+    ResolutionSwitch = None
 
 NODE_CLASS_MAPPINGS = {
     "SeededTextPool": SeededTextPool,
     "BranchRandomSwitcher": BranchRandomSwitcher,
     "BranchSelector": BranchSelector,
     "TagJoin": TagJoin,
-    "ResolutionSwitch": ResolutionSwitch,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -19,10 +22,13 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "BranchRandomSwitcher": "Branch Random Switcher",
     "BranchSelector": "Branch Selector",
     "TagJoin": "Tag Join",
-    "ResolutionSwitch": "Resolution Switch",
 }
+
+if ResolutionSwitch is not None:
+    NODE_CLASS_MAPPINGS["ResolutionSwitch"] = ResolutionSwitch
+    NODE_DISPLAY_NAME_MAPPINGS["ResolutionSwitch"] = "Resolution Switch"
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
 
-# Makes web/extensions/dynamic_prompt_engine.js available to ComfyUI.
+# Makes web/dynamic_prompt_engine.js available to ComfyUI.
 WEB_DIRECTORY = "./web"

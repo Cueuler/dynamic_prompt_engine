@@ -177,7 +177,7 @@ class SeededTextPool:
     CATEGORY = "Dynamic Prompt Engine"
 
     def select_from_pool(
-        self, pool_text, seed, bypass_chance=False, unique_id=None
+        self, pool_text, bypass_chance=False, seed=0, unique_id=None
     ):
         master_seed = int(seed)
         stream_key = stream_key_from_unique_id(unique_id)
@@ -360,8 +360,12 @@ class TagJoin:
 
     def join_tags(self, text="", unique_id=None, extra_pnginfo=None, **kwargs):
         tag_keys = sorted(
-            (key for key in kwargs if key.startswith("tag_")),
-            key=lambda key: int(key.rsplit("_", 1)[1]),
+            (
+                key
+                for key in kwargs
+                if key.startswith("tag_") and key[len("tag_"):].isdigit()
+            ),
+            key=lambda key: int(key[len("tag_"):]),
         )
         clean_tags = []
 
