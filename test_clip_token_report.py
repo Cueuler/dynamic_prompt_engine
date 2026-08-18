@@ -30,13 +30,20 @@ class FakeClipTokenizer:
         self.inv_vocab = inv_vocab or {
             BOS: "<start>",
             EOS: "<end>",
-            100: "hello",
-            101: "world",
-            102: "more",
-            103: "tokens",
+            100: "hello</w>",
+            101: "world</w>",
+            102: "more</w>",
+            103: "tokens</w>",
         }
 
+    def untokenize(self, token_weight_pair):
+        return [
+            (pair, self.inv_vocab.get(pair[0], f"[{pair[0]}]"))
+            for pair in token_weight_pair
+        ]
+
     def decode(self, token_ids, skip_special_tokens=True):
+        # Simulates HF decode inserting spaces between every token (avoid in production).
         return " ".join(self.inv_vocab.get(token_id, f"t{token_id}") for token_id in token_ids)
 
 
@@ -47,10 +54,10 @@ class FakeSDXLTokenizer:
             inv_vocab={
                 BOS: "<start>",
                 EOS: "<end>",
-                100: "hello",
-                101: "world",
-                102: "more",
-                103: "tokens",
+                100: "hello</w>",
+                101: "world</w>",
+                102: "more</w>",
+                103: "tokens</w>",
                 0: "<pad>",
             }
         )
@@ -84,13 +91,13 @@ class TestReconstructContent(unittest.TestCase):
     def test_decodes_integer_tokens(self):
         tokenizer = FakeClipTokenizer()
         content = [(100, 1.0), (101, 1.0)]
-        self.assertEqual(reconstruct_content(content, tokenizer), "hello world")
+        self.assertEqual(reconstruct_content(content, tokenizer), "hello world ")
 
     def test_embedding_placeholder(self):
         tokenizer = FakeClipTokenizer()
         embedding = object()
         content = [(100, 1.0), (embedding, 1.0), (101, 1.0)]
-        self.assertEqual(reconstruct_content(content, tokenizer), "hello [embedding] world")
+        self.assertEqual(reconstruct_content(content, tokenizer), "hello [embedding] world ")
 
     def test_inv_vocab_fallback(self):
         class VocabOnlyTokenizer:
@@ -98,6 +105,21 @@ class TestReconstructContent(unittest.TestCase):
 
         content = [(100, 1.0), (101, 1.0)]
         self.assertEqual(reconstruct_content(content, VocabOnlyTokenizer()), "hel lo")
+
+    def test_subword_concatenation_without_hf_decode_spaces(self):
+        tokenizer = FakeClipTokenizer(
+            inv_vocab={
+                200: "1",
+                201: "girl</w>",
+                202: "lace</w>",
+                203: "-</w>",
+                204: "up</w>",
+            }
+        )
+        content = [(200, 1.0), (201, 1.0)]
+        self.assertEqual(reconstruct_content(content, tokenizer), "1girl ")
+        content = [(202, 1.0), (203, 1.0), (204, 1.0)]
+        self.assertEqual(reconstruct_content(content, tokenizer), "lace - up ")
 
 
 class TestFormatClipTokenReport(unittest.TestCase):

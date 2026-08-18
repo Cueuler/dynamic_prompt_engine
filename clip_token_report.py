@@ -85,15 +85,31 @@ def content_signature(chunks, tokenizer):
     return tuple(signature)
 
 
+def _strip_clip_word_markers(text):
+    """Turn CLIP BPE word-end markers into spaces."""
+    return text.replace("</w>", " ")
+
+
 def _decode_ids(token_ids, tokenizer):
     if not token_ids:
         return ""
+
+    untokenize = getattr(tokenizer, "untokenize", None)
+    if callable(untokenize):
+        pairs = [(token_id, 1.0) for token_id in token_ids]
+        text = "".join(piece for _, piece in untokenize(pairs))
+        return _strip_clip_word_markers(text)
+
+    inv_vocab = getattr(tokenizer, "inv_vocab", {})
+    if inv_vocab:
+        text = "".join(inv_vocab.get(token_id, f"[{token_id}]") for token_id in token_ids)
+        return _strip_clip_word_markers(text)
+
     decode = getattr(tokenizer, "decode", None)
     if callable(decode):
         return decode(token_ids, skip_special_tokens=True)
-    inv_vocab = getattr(tokenizer, "inv_vocab", {})
-    text = "".join(inv_vocab.get(token_id, f"[{token_id}]") for token_id in token_ids)
-    return text.replace("</w>", " ")
+
+    return ""
 
 
 def reconstruct_content(content, tokenizer):
@@ -101,23 +117,27 @@ def reconstruct_content(content, tokenizer):
     if not content:
         return ""
 
-    parts = []
+    pieces = []
     int_ids = []
+
+    def flush_ids():
+        nonlocal int_ids
+        if int_ids:
+            pieces.append(_decode_ids(int_ids, tokenizer))
+            int_ids = []
 
     for pair in content:
         token = _pair_token(pair)
         if isinstance(token, int):
             int_ids.append(token)
             continue
-        if int_ids:
-            parts.append(_decode_ids(int_ids, tokenizer))
-            int_ids = []
-        parts.append("[embedding]")
+        flush_ids()
+        if pieces:
+            pieces[-1] = pieces[-1].rstrip()
+        pieces.append(" [embedding] ")
 
-    if int_ids:
-        parts.append(_decode_ids(int_ids, tokenizer))
-
-    return " ".join(part for part in parts if part)
+    flush_ids()
+    return "".join(pieces)
 
 
 def _tokenizer_window(tokenizer):
