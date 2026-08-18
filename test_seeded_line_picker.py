@@ -22,7 +22,7 @@ def _candidates(pool_text):
     ]
 
 
-def spec_stream_seed(master_seed, unique_id):
+def spec_stream_seed(master_seed, unique_id, suffix=""):
     """Copy of derive_stream_seed + stream_key_from_unique_id; not the node helper."""
     if isinstance(unique_id, (list, tuple)):
         unique_id = unique_id[0] if unique_id else None
@@ -31,7 +31,15 @@ def spec_stream_seed(master_seed, unique_id):
     else:
         stream_key = f"node:{unique_id}"
     key = f"{int(master_seed)}:{stream_key}"
+    if suffix:
+        key = f"{key}:{suffix}"
     return int(hashlib.sha256(key.encode("utf-8")).hexdigest()[:16], 16)
+
+
+def spec_bypass_gated(seed, unique_id=None):
+    """Independent PCG64 50% gate; same integers(0, 2) as the line pick."""
+    gate_seed = spec_stream_seed(seed, unique_id, "gate")
+    return int(np.random.default_rng(gate_seed).integers(0, 2)) == 0
 
 
 def spec_pick(pool_text, seed, unique_id=None):
@@ -46,15 +54,16 @@ def spec_pick(pool_text, seed, unique_id=None):
 
 
 class TestUniqueLinePickerInputTypes(unittest.TestCase):
-    def test_required_keys_are_only_input_and_seed(self):
+    def test_required_keys_are_input_bypass_and_seed(self):
         required = UniqueLinePicker.INPUT_TYPES()["required"]
-        self.assertEqual(set(required.keys()), {"input", "seed"})
+        self.assertEqual(set(required.keys()), {"input", "bypass_chance", "seed"})
 
-    def test_bypass_chance_is_absent(self):
-        schema = UniqueLinePicker.INPUT_TYPES()
-        required = schema["required"]
-        self.assertNotIn("bypass_chance", required)
-        self.assertNotIn("bypass_chance", schema.get("optional", {}))
+    def test_bypass_chance_widget_matches_seeded_text_pool(self):
+        widget = UniqueLinePicker.INPUT_TYPES()["required"]["bypass_chance"]
+        self.assertEqual(widget[0], "BOOLEAN")
+        self.assertEqual(widget[1].get("default"), False)
+        self.assertEqual(widget[1].get("label_on"), "50%")
+        self.assertEqual(widget[1].get("label_off"), "Off")
 
     def test_unique_id_is_hidden(self):
         hidden = UniqueLinePicker.INPUT_TYPES().get("hidden", {})
@@ -275,6 +284,76 @@ class TestUniqueLinePickerNoWildcardExpansion(unittest.TestCase):
             text, _ = self.node.pick_line(pool, seed=seed, unique_id="1")
             self.assertEqual(text, spec_pick(pool, seed, "1"))
             self.assertIn(text, ("{a|b}", "plain"))
+
+
+class TestUniqueLinePickerBypassChance(unittest.TestCase):
+    def setUp(self):
+        self.node = UniqueLinePicker()
+        self.pool = "alice\nbob\ncharlie"
+
+    def test_off_never_gates(self):
+        for seed in range(80):
+            text, out_seed = self.node.pick_line(
+                self.pool, bypass_chance=False, seed=seed, unique_id="1"
+            )
+            self.assertEqual(text, spec_pick(self.pool, seed, "1"))
+            self.assertEqual(out_seed, seed)
+            self.assertIn(text, ("alice", "bob", "charlie"))
+
+    def test_fifty_percent_matches_independent_pcg64_gate(self):
+        uid = "55"
+        gated = 0
+        picked = 0
+        for seed in range(200):
+            text, out_seed = self.node.pick_line(
+                self.pool, bypass_chance=True, seed=seed, unique_id=uid
+            )
+            self.assertEqual(out_seed, seed)
+            if spec_bypass_gated(seed, uid):
+                self.assertEqual(text, "")
+                gated += 1
+            else:
+                self.assertEqual(text, spec_pick(self.pool, seed, uid))
+                picked += 1
+        self.assertGreater(gated, 0)
+        self.assertGreater(picked, 0)
+
+    def test_gate_does_not_use_hash_mod_two(self):
+        uid = "7"
+        mismatch = 0
+        for seed in range(80):
+            hash_even = spec_stream_seed(seed, uid, "gate") % 2 == 0
+            pcg_even = spec_bypass_gated(seed, uid)
+            if hash_even != pcg_even:
+                mismatch += 1
+                text, _ = self.node.pick_line(
+                    self.pool, bypass_chance=True, seed=seed, unique_id=uid
+                )
+                self.assertEqual(text == "", pcg_even)
+        self.assertGreater(mismatch, 0)
+
+    def test_gate_runs_on_empty_pool(self):
+        text, seed = self.node.pick_line(
+            "", bypass_chance=True, seed=3, unique_id="1"
+        )
+        self.assertEqual(text, "")
+        self.assertEqual(seed, 3)
+
+    def test_gate_is_independent_of_pick_stream(self):
+        uid = "1"
+        pick_seed = spec_stream_seed(42, uid)
+        gate_seed = spec_stream_seed(42, uid, "gate")
+        self.assertNotEqual(pick_seed, gate_seed)
+
+    def test_does_not_mutate_stdlib_random_when_gating(self):
+        random.seed(123)
+        before = random.random()
+        random.seed(123)
+        self.node.pick_line(
+            self.pool, bypass_chance=True, seed=99, unique_id="1"
+        )
+        after = random.random()
+        self.assertEqual(before, after)
 
 
 class TestUniqueLinePickerSpread(unittest.TestCase):

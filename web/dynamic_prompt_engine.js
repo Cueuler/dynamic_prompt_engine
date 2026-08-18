@@ -800,6 +800,25 @@ function migrateSeededTextPoolWidgets(info) {
   return null;
 }
 
+/**
+ * UniqueLinePicker used to expose only a seed widget. Inserting bypass_chance
+ * before seed would otherwise steal the saved seed value.
+ * Legacy: [seed] or [seed, seed_mode] → [false, seed]
+ */
+function migrateUniqueLinePickerWidgets(info) {
+  const wv = info?.widgets_values;
+  if (!Array.isArray(wv) || wv.length === 0) {
+    return null;
+  }
+  if (typeof wv[0] === "boolean") {
+    return null;
+  }
+  if (typeof wv[0] === "number") {
+    return [false, wv[0]];
+  }
+  return null;
+}
+
 /** Push migrated values into the already-created widgets and their DOM elements. */
 function applyMigratedWidgetValues(node, values) {
   if (!values) {
@@ -836,6 +855,11 @@ function registerSchemaSync(nodeType, nodeData) {
       migrated = migrateSeededTextPoolWidgets(info);
       if (migrated) {
         // Keep the in-memory node data canonical for re-serialization.
+        info.widgets_values = migrated;
+      }
+    } else if (nodeData.name === "UniqueLinePicker") {
+      migrated = migrateUniqueLinePickerWidgets(info);
+      if (migrated) {
         info.widgets_values = migrated;
       }
     } else if (nodeData.name === "TagJoin") {

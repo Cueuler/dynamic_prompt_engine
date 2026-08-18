@@ -190,8 +190,8 @@ class SeededTextPool:
         "hash(seed:node:{id}) % n, so two copies of this node with the same "
         "seed can still pick different lines. Outputs: text, and seed unchanged.\n"
         "\n"
-        "Unlike Unique Line Picker: optional 50% bypass, and Impact Pack "
-        "{a|b} / __wildcard__ run on the chosen line.\n"
+        "Unlike Unique Line Picker: Impact Pack {a|b} / __wildcard__ run on "
+        "the chosen line, and bypass uses hash % 2 instead of PCG64 integers().\n"
         "\n"
         "Candidates: split on newlines, strip each line, drop blank/whitespace "
         "lines. Only remaining lines are in the pool.\n"
@@ -279,11 +279,14 @@ class UniqueLinePicker:
         "this node with the same seed can still pick different lines. "
         "Outputs: text, and seed unchanged.\n"
         "\n"
-        "Unlike Seeded Text Pool: no bypass_chance, and {a|b} / __wildcard__ "
-        "are not expanded.\n"
+        "Unlike Seeded Text Pool: {a|b} / __wildcard__ are not expanded.\n"
         "\n"
         "Candidates: split on newlines, strip each line, drop blank/whitespace "
         "lines. Only remaining lines are in the pool.\n"
+        "\n"
+        "Bypass chance Off: never gates. 50%: "
+        "default_rng(hash(seed:node:{id}:gate)).integers(0, 2) == 0 returns "
+        "empty text (this check runs even if the pool is empty).\n"
         "\n"
         "Examples: pool 'alice\\nbob\\ncharlie' → one of those three, stable "
         "for the same seed+node. Two copies, same seed, different node ids → "
@@ -305,6 +308,14 @@ class UniqueLinePicker:
                         "forceInput": True,
                     },
                 ),
+                "bypass_chance": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "label_on": "50%",
+                        "label_off": "Off",
+                    },
+                ),
                 "seed": SEED_INPUT,
             },
             "hidden": {
@@ -317,21 +328,26 @@ class UniqueLinePicker:
     FUNCTION = "pick_line"
     CATEGORY = "Dynamic Prompt Engine"
 
-    def pick_line(self, input, seed=0, unique_id=None):
+    def pick_line(self, input, bypass_chance=False, seed=0, unique_id=None):
         import numpy as np
 
         master_seed = int(seed)
+        stream_key = stream_key_from_unique_id(unique_id)
         lines = [
             line.strip()
             for line in str(input or "").splitlines()
             if line.strip()
         ]
+
+        if bypass_chance:
+            gate_seed = derive_stream_seed(master_seed, stream_key, "gate")
+            if int(np.random.default_rng(gate_seed).integers(0, 2)) == 0:
+                return ("", master_seed)
+
         if not lines:
             return ("", master_seed)
 
-        stream_seed = derive_stream_seed(
-            master_seed, stream_key_from_unique_id(unique_id)
-        )
+        stream_seed = derive_stream_seed(master_seed, stream_key)
         index = int(np.random.default_rng(stream_seed).integers(0, len(lines)))
         chosen = lines[index]
         text = "" if chosen == "[empty]" else chosen

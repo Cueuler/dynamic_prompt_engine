@@ -64,7 +64,7 @@ Category: **Dynamic Prompt Engine**
 | Node | Required inputs | Optional inputs | Outputs |
 |------|----------------|-----------------|---------|
 | **Seeded Text Pool** | `pool_text`, `bypass_chance`, `seed` | -- | `text`, `seed` |
-| **Unique Line Picker** | `input`, `seed` | -- | `text`, `seed` |
+| **Unique Line Picker** | `input`, `bypass_chance`, `seed` | -- | `text`, `seed` |
 | **Routing Switch** | `seed` | dynamic `input_0`... plus `chance_N` combos | `text`, `seed` |
 | **Branch Random Switcher** | `seed` | `branch_0`...`branch_14` | `text`, `branch` |
 | **Branch Selector** | `branch` | `input_0`...`input_14` | `text` |
@@ -75,7 +75,7 @@ Category: **Dynamic Prompt Engine**
 
 ### Seeded Text Pool
 
-Picks one line from `pool_text`. Choice is `hash(seed:node:{id}) % n`, so two copies of this node with the same seed can still pick different lines. Unlike **Unique Line Picker**, this node has `bypass_chance` and expands Impact `{a|b}` / `__wildcard__` on the chosen line. Outputs `text` and passes `seed` through unchanged.
+Picks one line from `pool_text`. Choice is `hash(seed:node:{id}) % n`, so two copies of this node with the same seed can still pick different lines. Unlike **Unique Line Picker**, this node expands Impact `{a|b}` / `__wildcard__` on the chosen line, and its bypass gate is `hash % 2` rather than PCG64. Outputs `text` and passes `seed` through unchanged.
 
 - Candidates: split on newlines, strip, drop blank/whitespace lines.
 - `bypass_chance` **Off**: never gates. **50%**: `hash(seed:node:{id}:gate) % 2 == 0` returns empty text (runs even if the pool is empty).
@@ -90,9 +90,10 @@ Examples:
 
 ### Unique Line Picker
 
-Picks one line from a **socket-only** `input` STRING (wire another STRING in; no text widget). Unlike **Seeded Text Pool**, there is no multiline box, no bypass gate, and `{a|b}` / `__wildcard__` are not expanded. ComfyUI's per-node `unique_id` is mixed into the seed, then `np.random.default_rng(stream_seed).integers(0, n)` chooses the line (same PCG64 generator Impact uses). Two copies of this node with the same seed can still pick different lines. Outputs `text` and passes `seed` through unchanged.
+Picks one line from a **socket-only** `input` STRING (wire another STRING in; no text widget). Unlike **Seeded Text Pool**, there is no multiline box, and `{a|b}` / `__wildcard__` are not expanded. ComfyUI's per-node `unique_id` is mixed into the seed, then `np.random.default_rng(stream_seed).integers(0, n)` chooses the line (same PCG64 generator Impact uses). Two copies of this node with the same seed can still pick different lines. Outputs `text` and passes `seed` through unchanged.
 
 - Candidates: split on newlines, strip, drop blank/whitespace lines.
+- `bypass_chance` **Off**: never gates. **50%**: `default_rng(hash(seed:node:{id}:gate)).integers(0, 2) == 0` returns empty text (same PCG64 `integers()` as the line pick; runs even if the pool is empty).
 - Literal line `[empty]` is a candidate that emits `""`.
 - `{a|b}` / `__wildcard__` are **not** expanded.
 
@@ -101,7 +102,7 @@ Examples:
 - `alice\nbob\ncharlie` → one of those three, stable for the same seed+node.
 - Two copies of this node, same seed, different node ids → independent winners.
 - `alice\n\n  \nbob` → only alice and bob are candidates.
-- Empty pool → `""`.
+- Empty pool, or bypass gate 0 → `""`.
 
 ### Routing Switch
 
@@ -228,7 +229,8 @@ Examples: 1024×1024 with `clip_scale=2` → scaled 2048×2048. Scaled sizes tru
 |---------|-----------|
 | Pool choice | `hash(seed:node:{id}) % n` |
 | Unique Line Picker | PCG64 `integers(0, n)` seeded from `hash(seed:node:{id})` |
-| Bypass chance gate | `hash(seed:node:{id}:gate) % 2` |
+| Bypass chance gate (Seeded Text Pool) | `hash(seed:node:{id}:gate) % 2` |
+| Bypass chance gate (Unique Line Picker) | PCG64 `integers(0, 2)` seeded from `hash(seed:node:{id}:gate)` |
 | Routing switch | weighted pick among eligible `input_N` slots |
 | Branch random switch | seeded pick among connected branch indices |
 | Branch selector | direct index lookup (no seed) |
