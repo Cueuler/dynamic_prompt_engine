@@ -1,12 +1,13 @@
 from .prompt_engine_nodes import (
     SeededTextPool,
+    UniqueLinePicker,
     RoutingSwitch,
     BranchRandomSwitcher,
     BranchSelector,
     TagJoin,
 )
 from .clip_token_report import CLIPTokenReport
-from .wildcard_processor import WildcardProcessor
+from .wildcard_processor import UniqueWildcardProcessor
 
 try:
     from .resolution_node import ResolutionSwitch
@@ -15,22 +16,24 @@ except ImportError:
 
 NODE_CLASS_MAPPINGS = {
     "SeededTextPool": SeededTextPool,
+    "UniqueLinePicker": UniqueLinePicker,
     "RoutingSwitch": RoutingSwitch,
     "BranchRandomSwitcher": BranchRandomSwitcher,
     "BranchSelector": BranchSelector,
     "TagJoin": TagJoin,
     "CLIPTokenReport": CLIPTokenReport,
-    "WildcardProcessor": WildcardProcessor,
+    "UniqueWildcardProcessor": UniqueWildcardProcessor,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "SeededTextPool": "Seeded Text Pool",
+    "UniqueLinePicker": "Unique Line Picker",
     "RoutingSwitch": "Routing Switch",
     "BranchRandomSwitcher": "Branch Random Switcher",
     "BranchSelector": "Branch Selector",
     "TagJoin": "Tag Join",
     "CLIPTokenReport": "CLIP Token Report",
-    "WildcardProcessor": "Wildcard Processor",
+    "UniqueWildcardProcessor": "Unique Wildcard Processor",
 }
 
 if ResolutionSwitch is not None:

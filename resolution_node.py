@@ -2,7 +2,7 @@ import torch
 
 class ResolutionSwitch:
     DESCRIPTION = (
-        "Picks width/height from a preset string and builds an empty latent. "
+        "Resolution Switch: picks width/height from a preset string and builds an empty latent. "
         "Also outputs CLIP-scaled dimensions.\n"
         "\n"
         "Parse 'W x H (ratio)', e.g. '1024 x 1024 (1:1)' → width=1024, "

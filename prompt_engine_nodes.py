@@ -186,9 +186,12 @@ class SeededTextPool:
     """Selects a deterministic text candidate from a multiline library based on seed + node id."""
 
     DESCRIPTION = (
-        "Picks one line from pool_text. Choice is hash(seed:node:{id}) % n, so "
-        "two copies of this node with the same seed can still pick different "
-        "lines. Outputs: text, and seed unchanged.\n"
+        "Seeded Text Pool: picks one line from pool_text. Choice is "
+        "hash(seed:node:{id}) % n, so two copies of this node with the same "
+        "seed can still pick different lines. Outputs: text, and seed unchanged.\n"
+        "\n"
+        "Unlike Unique Line Picker: optional 50% bypass, and Impact Pack "
+        "{a|b} / __wildcard__ run on the chosen line.\n"
         "\n"
         "Candidates: split on newlines, strip each line, drop blank/whitespace "
         "lines. Only remaining lines are in the pool.\n"
@@ -265,11 +268,82 @@ class SeededTextPool:
         return (chosen_text, master_seed)
 
 
+class UniqueLinePicker:
+    """Picks one line from a multiline pool using NumPy PCG64 mixed with node id."""
+
+    DESCRIPTION = (
+        "Unique Line Picker: picks one line from pool_text. Seed is mixed with "
+        "this node's id, then np.random.default_rng(stream_seed).integers(0, n) "
+        "chooses the line (same PCG64 generator Impact uses). Two copies of "
+        "this node with the same seed can still pick different lines. "
+        "Outputs: text, and seed unchanged.\n"
+        "\n"
+        "Unlike Seeded Text Pool: no bypass_chance, and {a|b} / __wildcard__ "
+        "are not expanded.\n"
+        "\n"
+        "Candidates: split on newlines, strip each line, drop blank/whitespace "
+        "lines. Only remaining lines are in the pool.\n"
+        "\n"
+        "Examples: pool 'alice\\nbob\\ncharlie' → one of those three, stable "
+        "for the same seed+node. Two copies, same seed, different node ids → "
+        "independent winners. 'alice\\n\\n  \\nbob' → only alice and bob. "
+        "Chosen line '[empty]' → empty string. Empty pool → empty string.\n"
+        "\n"
+        "Edge cases: the literal line [empty] is a candidate that emits blank "
+        "(not skipped). Seed is passed through even when text is empty."
+    )
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "pool_text": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "multiline": True,
+                        "dynamicPrompts": False,
+                        "placeholder": "Enter candidates, one per line...",
+                    },
+                ),
+                "seed": SEED_INPUT,
+            },
+            "hidden": {
+                "unique_id": "UNIQUE_ID",
+            },
+        }
+
+    RETURN_TYPES = ("STRING", "INT")
+    RETURN_NAMES = ("text", "seed")
+    FUNCTION = "pick_line"
+    CATEGORY = "Dynamic Prompt Engine"
+
+    def pick_line(self, pool_text, seed=0, unique_id=None):
+        import numpy as np
+
+        master_seed = int(seed)
+        lines = [
+            line.strip()
+            for line in str(pool_text or "").splitlines()
+            if line.strip()
+        ]
+        if not lines:
+            return ("", master_seed)
+
+        stream_seed = derive_stream_seed(
+            master_seed, stream_key_from_unique_id(unique_id)
+        )
+        index = int(np.random.default_rng(stream_seed).integers(0, len(lines)))
+        chosen = lines[index]
+        text = "" if chosen == "[empty]" else chosen
+        return (text, master_seed)
+
+
 class RoutingSwitch:
     """Seeded weighted pick among dynamic STRING inputs with per-slot chance combos."""
 
     DESCRIPTION = (
-        "Picks one wired input_N string. Unconnected sockets and chance Off "
+        "Routing Switch: picks one wired input_N string. Unconnected sockets and chance Off "
         "are excluded from the lottery. A connected empty or whitespace string "
         "can win (output is stripped empty). Off cannot win and does not add "
         "weight. Remaining slots share the roll: Default is 1×, 1.5x is 50% "
@@ -277,7 +351,8 @@ class RoutingSwitch:
         "deterministic.\n"
         "\n"
         "Outputs the winning text (stripped, no extra commas) and the seed "
-        "unchanged so you can wire Impact Pack wildcards yourself.\n"
+        "unchanged so you can wire Unique Wildcard Processor (or Impact Pack) "
+        "yourself.\n"
         "\n"
         "Examples: three Default clothes groups → one of them, equal chance. "
         "input_0 Default and input_1 2x → input_1 wins about twice as often. "
@@ -342,7 +417,7 @@ class BranchSelector:
     """Selects the input at the given branch index (N-way)."""
 
     DESCRIPTION = (
-        "Returns input_{branch} (sockets input_0…input_14). The branch integer "
+        "Branch Selector: returns input_{branch} (sockets input_0…input_14). The branch integer "
         "is a socket index, not 'the Nth wired input'. No seed. Wire Branch "
         "Random Switcher's branch output here so the numbers match "
         "(branch_2 → input_2).\n"
@@ -414,7 +489,7 @@ class BranchRandomSwitcher:
     """Randomly selects one connected branch and outputs its text and index."""
 
     DESCRIPTION = (
-        "Seeded pick among wired branch_0…branch_14 sockets (max 15). Outputs "
+        "Branch Random Switcher: seeded pick among wired branch_0…branch_14 sockets (max 15). Outputs "
         "text and branch (the socket index 0…14, not 'Nth wire'). Same seed+"
         "node id is deterministic; different node ids can differ. Unplug a "
         "socket to drop it from the rotation.\n"
@@ -488,7 +563,7 @@ class TagJoin:
     """Joins connected tag strings in input order and displays the resulting text."""
 
     DESCRIPTION = (
-        "Joins wired tag_N strings in numeric index order (tag_0, tag_1, …; "
+        "Tag Join: joins wired tag_N strings in numeric index order (tag_0, tag_1, …; "
         "tag_10 after tag_2). Dynamic sockets: connected tags + one spare. No "
         "seed. The multiline text widget is a preview only (filled after run), "
         "not a tag input. Output: prompt.\n"

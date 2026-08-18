@@ -1,4 +1,4 @@
-"""Tests for WildcardProcessor.
+"""Tests for UniqueWildcardProcessor.
 
 Stolen cases come from ComfyUI-Impact-Pack:
   tests/wildcards/test_versatile_prompts.sh
@@ -8,6 +8,7 @@ Stolen cases come from ComfyUI-Impact-Pack:
   tests/wildcards/test_wildcard_final.py
 """
 
+import hashlib
 import sys
 import unittest
 from pathlib import Path
@@ -46,34 +47,53 @@ def _install_impact_stubs():
 
 
 try:
-    _install_impact_stubs()
+    impact_process = _install_impact_stubs()
     IMPACT_PROCESS_AVAILABLE = True
 except Exception:
+    impact_process = None
     IMPACT_PROCESS_AVAILABLE = False
 
-from dynamic_prompt_engine.wildcard_processor import WildcardProcessor
+from dynamic_prompt_engine.wildcard_processor import UniqueWildcardProcessor
 
 
-def expand(text, seed):
-    (result,) = WildcardProcessor().doit(populated_text=text, seed=seed)
+def spec_stream_seed(master_seed, unique_id):
+    """Copy of derive_stream_seed + stream_key_from_unique_id; not the node helper."""
+    if isinstance(unique_id, (list, tuple)):
+        unique_id = unique_id[0] if unique_id else None
+    if unique_id is None:
+        stream_key = "default"
+    else:
+        stream_key = f"node:{unique_id}"
+    key = f"{int(master_seed)}:{stream_key}"
+    return int(hashlib.sha256(key.encode("utf-8")).hexdigest()[:16], 16)
+
+
+def expand(text, seed, unique_id="1"):
+    (result,) = UniqueWildcardProcessor().doit(
+        populated_text=text, seed=seed, unique_id=unique_id
+    )
     return result
 
 
-class TestWildcardProcessorInputTypes(unittest.TestCase):
+class TestUniqueWildcardProcessorInputTypes(unittest.TestCase):
     def test_required_keys_are_only_populated_text_and_seed(self):
-        required = WildcardProcessor.INPUT_TYPES()["required"]
+        required = UniqueWildcardProcessor.INPUT_TYPES()["required"]
         self.assertEqual(set(required.keys()), {"populated_text", "seed"})
 
     def test_removed_impact_fields_are_absent(self):
-        required = WildcardProcessor.INPUT_TYPES()["required"]
+        required = UniqueWildcardProcessor.INPUT_TYPES()["required"]
         self.assertNotIn("wildcard_text", required)
         self.assertNotIn("mode", required)
         self.assertNotIn("Select to add Wildcard", required)
 
+    def test_unique_id_is_hidden(self):
+        hidden = UniqueWildcardProcessor.INPUT_TYPES().get("hidden", {})
+        self.assertEqual(hidden.get("unique_id"), "UNIQUE_ID")
 
-class TestWildcardProcessorProcess(unittest.TestCase):
+
+class TestUniqueWildcardProcessorProcess(unittest.TestCase):
     def setUp(self):
-        self.node = WildcardProcessor()
+        self.node = UniqueWildcardProcessor()
 
     def test_plain_text_returns_unchanged(self):
         template = "a red fox"
@@ -82,13 +102,109 @@ class TestWildcardProcessorProcess(unittest.TestCase):
         self.assertEqual(template, "a red fox")
 
     @patch("dynamic_prompt_engine.wildcard_processor.process_impact_wildcards")
-    def test_wildcard_text_is_expanded_with_seed(self, process_wildcards):
+    def test_wildcard_text_is_expanded_with_mixed_seed(self, process_wildcards):
         process_wildcards.return_value = "expanded prompt"
         template = "a {red|blue} fox"
-        (result,) = self.node.doit(populated_text=template, seed=7)
-        process_wildcards.assert_called_once_with(template, 7)
+        (result,) = self.node.doit(
+            populated_text=template, seed=7, unique_id="55"
+        )
+        process_wildcards.assert_called_once_with(
+            template, spec_stream_seed(7, "55")
+        )
         self.assertEqual(result, "expanded prompt")
         self.assertEqual(template, "a {red|blue} fox")
+
+    def test_plain_text_ignores_unique_id(self):
+        a, = self.node.doit(populated_text="plain", seed=1, unique_id="10")
+        b, = self.node.doit(populated_text="plain", seed=1, unique_id="20")
+        self.assertEqual(a, "plain")
+        self.assertEqual(b, "plain")
+
+
+class TestUniqueWildcardProcessorUniqueId(unittest.TestCase):
+    def setUp(self):
+        self.node = UniqueWildcardProcessor()
+        self.prompt = "{red|green|blue}"
+
+    def test_same_seed_and_unique_id_is_deterministic(self):
+        a = expand(self.prompt, 42, unique_id="55")
+        b = expand(self.prompt, 42, unique_id="55")
+        self.assertEqual(a, b)
+
+    def test_unique_id_list_matches_string(self):
+        a, = self.node.doit(
+            populated_text=self.prompt, seed=7, unique_id="55"
+        )
+        b, = self.node.doit(
+            populated_text=self.prompt, seed=7, unique_id=["55"]
+        )
+        self.assertEqual(a, b)
+
+    def test_missing_unique_id_uses_default_stream(self):
+        text, = self.node.doit(populated_text=self.prompt, seed=7)
+        self.assertEqual(text, expand(self.prompt, 7, unique_id=None))
+
+    def test_different_nodes_can_expand_differently(self):
+        differing = 0
+        for seed in range(80):
+            a = expand(self.prompt, seed, unique_id="10")
+            b = expand(self.prompt, seed, unique_id="20")
+            if a != b:
+                differing += 1
+        self.assertGreater(
+            differing,
+            0,
+            "Expected at least one seed where different unique_ids expand "
+            "differently.",
+        )
+
+    def test_seed_zero_and_large_seed_expand(self):
+        for seed in (0, 2**32):
+            result = expand(self.prompt, seed, unique_id="1")
+            self.assertIn(result, {"red", "green", "blue"})
+
+
+@unittest.skipUnless(IMPACT_PROCESS_AVAILABLE, "numpy/PyYAML + Impact Pack modules required")
+class TestUniqueWildcardProcessorOracle(unittest.TestCase):
+    def test_doit_equals_impact_process_with_mixed_seed(self):
+        prompt = "{blue apple|red {cherry|berry}|green melon}"
+        uid = "55"
+        for seed in (0, 1, 42, 100, 999):
+            ours, = UniqueWildcardProcessor().doit(
+                populated_text=prompt, seed=seed, unique_id=uid
+            )
+            vanilla = impact_process(prompt, spec_stream_seed(seed, uid))
+            self.assertEqual(ours, vanilla)
+
+    def test_raw_seed_is_not_the_impact_seed(self):
+        prompt = "{red|green|blue}"
+        seed = 2
+        uid = "55"
+        mixed = spec_stream_seed(seed, uid)
+        vanilla_raw = impact_process(prompt, seed)
+        vanilla_mixed = impact_process(prompt, mixed)
+        if vanilla_raw == vanilla_mixed:
+            self.skipTest("this seed collides between raw and mixed streams")
+        ours, = UniqueWildcardProcessor().doit(
+            populated_text=prompt, seed=seed, unique_id=uid
+        )
+        self.assertEqual(ours, vanilla_mixed)
+        self.assertNotEqual(ours, vanilla_raw)
+
+
+@unittest.skipUnless(IMPACT_PROCESS_AVAILABLE, "numpy/PyYAML + Impact Pack modules required")
+class TestUniqueWildcardProcessorSpread(unittest.TestCase):
+    def test_three_thousand_seeds_hit_every_color_hundreds_of_times(self):
+        prompt = "{red|green|blue}"
+        counts = {"red": 0, "green": 0, "blue": 0}
+        for seed in range(3000):
+            counts[expand(prompt, seed, unique_id="1")] += 1
+        for name, count in counts.items():
+            self.assertGreaterEqual(
+                count,
+                300,
+                f"{name} only picked {count} times in 3000 seeds",
+            )
 
 
 @unittest.skipUnless(IMPACT_PROCESS_AVAILABLE, "numpy/PyYAML + Impact Pack modules required")

@@ -1,8 +1,9 @@
 # Dynamic Prompt Engine
 
 ComfyUI custom nodes for modular, seed-reproducible prompt building. Editable
-multiline pools, a weighted routing switch with dynamic inputs, a seeded random
-branch switcher, an N-way branch selector, and Impact-style wildcard expansion.
+multiline pools, Unique Line Picker, Unique Wildcard Processor, a weighted
+routing switch with dynamic inputs, a seeded random branch switcher, an N-way
+branch selector, and Tag Join.
 
 Clone directly into `ComfyUI/custom_nodes/` -- no symlinks or copying needed.
 
@@ -20,23 +21,31 @@ and `BranchSelector`. Their old socket layouts and links are not migrated automa
 `FirstOrMerge` also had branch-specific merge behavior that has no direct equivalent in
 the generic selector; reproduce that behavior with the appropriate `Tag Join` nodes.
 
+These mapping keys also changed (not migrated automatically):
+
+- `SeededLinePicker` → `UniqueLinePicker`
+- `WildcardProcessor` → `UniqueWildcardProcessor`
+
 ## Architecture
 
 ```mermaid
 flowchart LR
   seed[Seed]
   rootPool["SeededTextPool"]
+  linePicker["UniqueLinePicker"]
   routing[RoutingSwitch]
-  wildcard[WildcardProcessor]
+  wildcard[UniqueWildcardProcessor]
   switcher[BranchRandomSwitcher]
   selector[BranchSelector]
   joins[TagJoins]
   finalPrompt[OrderedPrompt]
 
   seed --> rootPool
+  seed --> linePicker
   seed --> routing
   seed --> switcher
   rootPool --> joins
+  linePicker --> joins
   routing -->|"text + seed"| wildcard
   wildcard --> joins
   switcher -->|"branch"| selector
@@ -44,7 +53,7 @@ flowchart LR
   joins -->|"prompt"| finalPrompt
 ```
 
-**Seeded** nodes (**Seeded Text Pool**, **Routing Switch**, **Branch Random Switcher**, **Wildcard Processor**) accept `seed` for deterministic selection. **Branch Selector** and **Tag Join** do not use seed.
+**Seeded** nodes (**Seeded Text Pool**, **Unique Line Picker**, **Routing Switch**, **Branch Random Switcher**, **Unique Wildcard Processor**) accept `seed` for deterministic selection. **Branch Selector** and **Tag Join** do not use seed.
 
 Empty or whitespace-only STRING inputs are skipped on join. Tag-like joins strip leading/trailing `,` and spaces from each part, then join with ", " and end with ", " when non-empty.
 
@@ -55,17 +64,18 @@ Category: **Dynamic Prompt Engine**
 | Node | Required inputs | Optional inputs | Outputs |
 |------|----------------|-----------------|---------|
 | **Seeded Text Pool** | `pool_text`, `bypass_chance`, `seed` | -- | `text`, `seed` |
+| **Unique Line Picker** | `pool_text`, `seed` | -- | `text`, `seed` |
 | **Routing Switch** | `seed` | dynamic `input_0`... plus `chance_N` combos | `text`, `seed` |
 | **Branch Random Switcher** | `seed` | `branch_0`...`branch_14` | `text`, `branch` |
 | **Branch Selector** | `branch` | `input_0`...`input_14` | `text` |
 | **Tag Join** | `text` preview | dynamic `tag_0`... | `prompt` |
-| **Wildcard Processor** | `populated_text`, `seed` | -- | `processed text` |
+| **Unique Wildcard Processor** | `populated_text`, `seed` | -- | `processed text` |
 | **CLIP Token Report** | `clip`, `text` (socket) | `report` preview | `report` |
 | **Resolution Switch** | `resolution`, `batch_size`, `clip_scale` | -- | `width`, `height`, `latent`, `scaled_width`, `scaled_height` |
 
 ### Seeded Text Pool
 
-Picks one line from `pool_text`. Choice is `hash(seed:node:{id}) % n`, so two copies of this node with the same seed can still pick different lines. Outputs `text` and passes `seed` through unchanged.
+Picks one line from `pool_text`. Choice is `hash(seed:node:{id}) % n`, so two copies of this node with the same seed can still pick different lines. Unlike **Unique Line Picker**, this node has `bypass_chance` and expands Impact `{a|b}` / `__wildcard__` on the chosen line. Outputs `text` and passes `seed` through unchanged.
 
 - Candidates: split on newlines, strip, drop blank/whitespace lines.
 - `bypass_chance` **Off**: never gates. **50%**: `hash(seed:node:{id}:gate) % 2 == 0` returns empty text (runs even if the pool is empty).
@@ -78,13 +88,28 @@ Examples:
 - `alice\n\n  \nbob` → only alice and bob are candidates.
 - Empty pool, or bypass gate even → `""`.
 
+### Unique Line Picker
+
+Picks one line from `pool_text`. Unlike **Seeded Text Pool**, there is no bypass gate and `{a|b}` / `__wildcard__` are not expanded. ComfyUI's per-node `unique_id` is mixed into the seed, then `np.random.default_rng(stream_seed).integers(0, n)` chooses the line (same PCG64 generator Impact uses). Two copies of this node with the same seed can still pick different lines. Outputs `text` and passes `seed` through unchanged.
+
+- Candidates: split on newlines, strip, drop blank/whitespace lines.
+- Literal line `[empty]` is a candidate that emits `""`.
+- `{a|b}` / `__wildcard__` are **not** expanded.
+
+Examples:
+
+- `alice\nbob\ncharlie` → one of those three, stable for the same seed+node.
+- Two copies of this node, same seed, different node ids → independent winners.
+- `alice\n\n  \nbob` → only alice and bob are candidates.
+- Empty pool → `""`.
+
 ### Routing Switch
 
 Seeded weighted pick among uncapped dynamic `input_0`... STRING sockets (Tag Join grow-by-one-spare). Sockets use ComfyUI’s default spacing. Connected sockets get a combo in a block under the inputs (**Default**, **Off**, **1.5x**, **2x**; Default is 1×), labeled with the same name as that input. Unconnected spare sockets have no combo. Seed and Control after generate sit at the bottom.
 
 A slot enters the lottery only if it is wired (the `input_N` value is present and not `None`) and the combo is not Off. A wired empty or whitespace string is a real candidate and can win as `""`. Missing combo counts as Default. Integer weights: Default = 2, 1.5x = 3, 2x = 4. Pick is `hash(seed:node:{id}) % total_weight`.
 
-Outputs the winning string (stripped, no trailing comma) and the same `seed` so you can wire **Wildcard Processor** (or Impact Pack) yourself.
+Outputs the winning string (stripped, no trailing comma) and the same `seed` so you can wire **Unique Wildcard Processor** (or Impact Pack) yourself.
 
 - Unconnected (`None` / omitted) and Off are excluded. Off does not add weight.
 - Connected empty/whitespace can win; output is `""`.
@@ -151,17 +176,18 @@ Examples:
 
 A selector marker like `branch 2 skipped` is non-empty, so it is included in the prompt.
 
-### Wildcard Processor
+### Unique Wildcard Processor
 
-Expands Impact Pack `{a|b}` / `__wildcard__` syntax in `populated_text` and outputs `processed text`. Always expands at execute (populate behavior). Type in the multiline widget or convert/wire another STRING into it; the widget is not overwritten.
+Expands Impact Pack `{a|b}` / `__wildcard__` syntax in `populated_text` and outputs `processed text`. Unlike **Unique Line Picker**, this node does expand Impact syntax. Always expands at execute (populate behavior). Type in the multiline widget or convert/wire another STRING into it; the widget is not overwritten.
 
 - Requires **ComfyUI-Impact-Pack** when the text contains `{` or `__` (raises if missing).
 - Plain text with neither is returned unchanged.
-- `seed` is passed through to Impact's `process()` as-is (same seed → same expansion).
+- ComfyUI's per-node `unique_id` is mixed into the seed, then Impact `process(populated_text, stream_seed)` expands. Two copies of this node with the same seed can still expand differently. Same seed + same node stays deterministic.
 
 Examples:
 
 - `a {red|blue} fox` + seed → `a red fox` or `a blue fox`.
+- Two copies of this node, same seed, different node ids → independent expansions.
 - Wire Tag Join / Routing Switch into `populated_text` → output is the expanded prompt.
 
 ### CLIP Token Report
@@ -201,12 +227,13 @@ Examples: 1024×1024 with `clip_scale=2` → scaled 2048×2048. Scaled sizes tru
 | Feature | Mechanism |
 |---------|-----------|
 | Pool choice | `hash(seed:node:{id}) % n` |
+| Unique Line Picker | PCG64 `integers(0, n)` seeded from `hash(seed:node:{id})` |
 | Bypass chance gate | `hash(seed:node:{id}:gate) % 2` |
 | Routing switch | weighted pick among eligible `input_N` slots |
 | Branch random switch | seeded pick among connected branch indices |
 | Branch selector | direct index lookup (no seed) |
-| Wildcard processor | Impact `process(populated_text, seed)` |
-| Seed chain | passthrough INT on Seeded Text Pool and Routing Switch |
+| Unique Wildcard Processor | `hash(seed:node:{id})` then Impact `process(populated_text, stream_seed)` |
+| Seed chain | passthrough INT on Seeded Text Pool, Unique Line Picker, and Routing Switch |
 
 ## Install
 

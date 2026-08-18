@@ -652,10 +652,12 @@ function registerOutputPreviewNode(nodeType, previewName, placeholder) {
 
 const ENGINE_NODE_NAMES = new Set([
   "SeededTextPool",
+  "UniqueLinePicker",
   "RoutingSwitch",
   "BranchRandomSwitcher",
   "TagJoin",
   "BranchSelector",
+  "UniqueWildcardProcessor",
 ]);
 
 function expectedOutputCount(nodeData) {

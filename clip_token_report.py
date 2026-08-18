@@ -243,7 +243,7 @@ class CLIPTokenReport:
     """Inspect CLIP token chunks without encoding."""
 
     DESCRIPTION = (
-        "Tokenizes the prompt with the connected CLIP model and reports how "
+        "CLIP Token Report: tokenizes the prompt with the connected CLIP model and reports how "
         "ComfyUI splits it into 77-token CLIP windows (75 content tokens each "
         "for SDXL CLIP-L/G). Inspect-only: does not output conditioning.\n"
         "\n"
