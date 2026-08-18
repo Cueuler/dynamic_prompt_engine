@@ -376,6 +376,7 @@ function spacerWidgetName(index) {
   return `__spacer_${index}`;
 }
 
+const CHANCE_GAP_NAME = "__chance_gap";
 const WIDGET_GAP = 4;
 const WIDGET_STACK_PAD = 8;
 const ROUTING_MIN_WIDTH = 240;
@@ -386,6 +387,10 @@ function isChanceWidget(widget) {
 
 function isSpacerWidget(widget) {
   return typeof widget?.name === "string" && /^__spacer_\d+$/.test(widget.name);
+}
+
+function isChanceGapWidget(widget) {
+  return widget?.name === CHANCE_GAP_NAME;
 }
 
 function isSeedControlWidget(widget) {
@@ -469,6 +474,49 @@ function ensureSpacerWidget(node, index) {
   return spacer;
 }
 
+function ensureChanceGapWidget(node) {
+  const existing = (node.widgets ?? []).find(isChanceGapWidget);
+  if (existing) {
+    return existing;
+  }
+  const gap = {
+    name: CHANCE_GAP_NAME,
+    type: "spacer",
+    value: "",
+    serialize: false,
+    computeSize(width) {
+      return [
+        typeof width === "number" && width > 0 ? width : ROUTING_MIN_WIDTH,
+        slotHeight() + WIDGET_STACK_PAD,
+      ];
+    },
+    draw() {},
+  };
+  if (!Array.isArray(node.widgets)) {
+    node.widgets = [];
+  }
+  node.widgets.push(gap);
+  return gap;
+}
+
+function routingInputDisplayName(node, index) {
+  const input = (node.inputs ?? []).find(
+    (slot) => routingInputIndex(slot.name) === index,
+  );
+  const label = typeof input?.label === "string" ? input.label.trim() : "";
+  return label || input?.name || `input_${index}`;
+}
+
+function labelChanceWidgets(node) {
+  for (const widget of node.widgets ?? []) {
+    if (!isChanceWidget(widget)) {
+      continue;
+    }
+    const index = Number.parseInt(widget.name.slice("chance_".length), 10);
+    widget.label = routingInputDisplayName(node, index);
+  }
+}
+
 function ensureChanceWidget(node, index, savedValue) {
   const name = chanceWidgetName(index);
   const existing = (node.widgets ?? []).find((widget) => widget.name === name);
@@ -479,9 +527,11 @@ function ensureChanceWidget(node, index, savedValue) {
     typeof savedValue === "string" && CHANCE_OPTIONS.includes(savedValue)
       ? savedValue
       : "Default";
-  return node.addWidget("combo", name, value, () => {}, {
+  const widget = node.addWidget("combo", name, value, () => {}, {
     values: CHANCE_OPTIONS,
   });
+  widget.label = routingInputDisplayName(node, index);
+  return widget;
 }
 
 function orderRoutingSwitchWidgets(node) {
@@ -492,7 +542,8 @@ function orderRoutingSwitchWidgets(node) {
     (widget) =>
       !seedSet.has(widget) &&
       !isChanceWidget(widget) &&
-      !isSpacerWidget(widget),
+      !isSpacerWidget(widget) &&
+      !isChanceGapWidget(widget),
   );
   const spacerIndices = new Set();
   const chanceIndices = new Set();
@@ -518,7 +569,14 @@ function orderRoutingSwitchWidgets(node) {
       chances.push(chance);
     }
   }
-  node.widgets = [...seedBlock, ...spacers, ...chances, ...rest];
+  const gap = widgets.find(isChanceGapWidget);
+  node.widgets = [
+    ...spacers,
+    ...(gap ? [gap] : []),
+    ...chances,
+    ...seedBlock,
+    ...rest,
+  ];
 }
 
 function slotOffset() {
@@ -549,6 +607,7 @@ function layoutRoutingSwitchSlots(node) {
       widget.width = width;
     }
   }
+  labelChanceWidgets(node);
 
   for (const input of node.inputs ?? []) {
     const index = routingInputIndex(input.name);
@@ -666,6 +725,7 @@ function syncRoutingSwitchChances(node) {
       );
     }
   }
+  ensureChanceGapWidget(node);
 
   orderRoutingSwitchWidgets(node);
   node.widgets_start_y = titleHeight();
@@ -673,9 +733,8 @@ function syncRoutingSwitchChances(node) {
 }
 
 function registerRoutingSwitch(nodeType) {
-  // Layout: seed + Control after generate, spacer rows for every input_N,
-  // then chance combos for wired inputs only. After arrange(), input
-  // sockets follow spacer.y so they sit above the chance block.
+  // Layout: spacer rows for every input_N, a gap, chance combos named like
+  // their inputs, then seed + Control after generate. Outputs follow the seed block.
   registerDynamicStringNode(nodeType, routingSockets, {
     afterLayout: (node) => {
       const pending = node.__dpeRoutingWidgets;

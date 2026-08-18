@@ -79,7 +79,7 @@ Examples:
 
 ### Routing Switch
 
-Seeded weighted pick among uncapped dynamic `input_0`... STRING sockets (Tag Join grow-by-one-spare). Connected sockets get a combo in a block under the inputs: **Default**, **Off**, **1.5x**, **2x** (Default is 1×). Unconnected spare sockets have no combo.
+Seeded weighted pick among uncapped dynamic `input_0`... STRING sockets (Tag Join grow-by-one-spare). Connected sockets get a combo in a block under the inputs (**Default**, **Off**, **1.5x**, **2x**; Default is 1×), labeled with the same name as that input. Unconnected spare sockets have no combo. Seed and Control after generate sit at the bottom.
 
 A slot enters the lottery only if it is wired, the text is non-empty after strip, and the combo is not Off. Missing combo counts as Default. Integer weights: Default = 2, 1.5x = 3, 2x = 4. Pick is `hash(seed:node:{id}) % total_weight`.
 
