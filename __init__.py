@@ -6,6 +6,7 @@ from .prompt_engine_nodes import (
     TagJoin,
 )
 from .clip_token_report import CLIPTokenReport
+from .wildcard_processor import WildcardProcessor
 
 try:
     from .resolution_node import ResolutionSwitch
@@ -19,6 +20,7 @@ NODE_CLASS_MAPPINGS = {
     "BranchSelector": BranchSelector,
     "TagJoin": TagJoin,
     "CLIPTokenReport": CLIPTokenReport,
+    "WildcardProcessor": WildcardProcessor,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -28,6 +30,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "BranchSelector": "Branch Selector",
     "TagJoin": "Tag Join",
     "CLIPTokenReport": "CLIP Token Report",
+    "WildcardProcessor": "Wildcard Processor",
 }
 
 if ResolutionSwitch is not None:

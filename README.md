@@ -2,7 +2,7 @@
 
 ComfyUI custom nodes for modular, seed-reproducible prompt building. Editable
 multiline pools, a weighted routing switch with dynamic inputs, a seeded random
-branch switcher, and an N-way branch selector.
+branch switcher, an N-way branch selector, and Impact-style wildcard expansion.
 
 Clone directly into `ComfyUI/custom_nodes/` -- no symlinks or copying needed.
 
@@ -27,7 +27,7 @@ flowchart LR
   seed[Seed]
   rootPool["SeededTextPool"]
   routing[RoutingSwitch]
-  impact[ImpactPack]
+  wildcard[WildcardProcessor]
   switcher[BranchRandomSwitcher]
   selector[BranchSelector]
   joins[TagJoins]
@@ -37,14 +37,14 @@ flowchart LR
   seed --> routing
   seed --> switcher
   rootPool --> joins
-  routing -->|"text + seed"| impact
-  impact --> joins
+  routing -->|"text + seed"| wildcard
+  wildcard --> joins
   switcher -->|"branch"| selector
   selector --> joins
   joins -->|"prompt"| finalPrompt
 ```
 
-**Seeded** nodes (**Seeded Text Pool**, **Routing Switch**, **Branch Random Switcher**) accept `seed` for deterministic selection. **Branch Selector** and **Tag Join** do not use seed.
+**Seeded** nodes (**Seeded Text Pool**, **Routing Switch**, **Branch Random Switcher**, **Wildcard Processor**) accept `seed` for deterministic selection. **Branch Selector** and **Tag Join** do not use seed.
 
 Empty or whitespace-only STRING inputs are skipped on join. Tag-like joins strip leading/trailing `,` and spaces from each part, then join with ", " and end with ", " when non-empty.
 
@@ -59,6 +59,7 @@ Category: **Dynamic Prompt Engine**
 | **Branch Random Switcher** | `seed` | `branch_0`...`branch_14` | `text`, `branch` |
 | **Branch Selector** | `branch` | `input_0`...`input_14` | `text` |
 | **Tag Join** | `text` preview | dynamic `tag_0`... | `prompt` |
+| **Wildcard Processor** | `populated_text`, `seed` | -- | `processed text` |
 | **CLIP Token Report** | `clip`, `text` (socket) | `report` preview | `report` |
 | **Resolution Switch** | `resolution`, `batch_size`, `clip_scale` | -- | `width`, `height`, `latent`, `scaled_width`, `scaled_height` |
 
@@ -81,11 +82,12 @@ Examples:
 
 Seeded weighted pick among uncapped dynamic `input_0`... STRING sockets (Tag Join grow-by-one-spare). Sockets use ComfyUI’s default spacing. Connected sockets get a combo in a block under the inputs (**Default**, **Off**, **1.5x**, **2x**; Default is 1×), labeled with the same name as that input. Unconnected spare sockets have no combo. Seed and Control after generate sit at the bottom.
 
-A slot enters the lottery only if it is wired, the text is non-empty after strip, and the combo is not Off. Missing combo counts as Default. Integer weights: Default = 2, 1.5x = 3, 2x = 4. Pick is `hash(seed:node:{id}) % total_weight`.
+A slot enters the lottery only if it is wired (the `input_N` value is present and not `None`) and the combo is not Off. A wired empty or whitespace string is a real candidate and can win as `""`. Missing combo counts as Default. Integer weights: Default = 2, 1.5x = 3, 2x = 4. Pick is `hash(seed:node:{id}) % total_weight`.
 
-Outputs the winning string (stripped, no trailing comma) and the same `seed` so you can wire Impact Pack wildcards yourself.
+Outputs the winning string (stripped, no trailing comma) and the same `seed` so you can wire **Wildcard Processor** (or Impact Pack) yourself.
 
-- Unconnected, empty/whitespace, and Off are excluded.
+- Unconnected (`None` / omitted) and Off are excluded. Off does not add weight.
+- Connected empty/whitespace can win; output is `""`.
 - Zero eligible → `text=""`, seed still passed through.
 - Same seed + node id + wiring + combos → same winner.
 
@@ -93,7 +95,8 @@ Examples:
 
 - Three Default clothes groups → one of them, equal chance.
 - `input_0` Default and `input_1` 2x → `input_1` wins about twice as often.
-- Only Off/empty left → empty text.
+- Wired empty Default plus a non-empty Default → either `""` or the text, equal chance.
+- Only Off or unconnected left → empty text.
 
 ### Branch Random Switcher
 
@@ -148,6 +151,19 @@ Examples:
 
 A selector marker like `branch 2 skipped` is non-empty, so it is included in the prompt.
 
+### Wildcard Processor
+
+Expands Impact Pack `{a|b}` / `__wildcard__` syntax in `populated_text` and outputs `processed text`. Always expands at execute (populate behavior). Type in the multiline widget or convert/wire another STRING into it; the widget is not overwritten.
+
+- Requires **ComfyUI-Impact-Pack** when the text contains `{` or `__` (raises if missing).
+- Plain text with neither is returned unchanged.
+- `seed` is passed through to Impact's `process()` as-is (same seed → same expansion).
+
+Examples:
+
+- `a {red|blue} fox` + seed → `a red fox` or `a blue fox`.
+- Wire Tag Join / Routing Switch into `populated_text` → output is the expanded prompt.
+
 ### CLIP Token Report
 
 Inspect-only node: tokenizes the prompt with ComfyUI's connected CLIP via `clip.tokenize(text)` and shows how the encoder splits it into fixed windows. Does **not** output conditioning — keep using stock **CLIPTextEncode** for that. Wire the **same CLIP** and **same prompt** you encode with.
@@ -189,6 +205,7 @@ Examples: 1024×1024 with `clip_scale=2` → scaled 2048×2048. Scaled sizes tru
 | Routing switch | weighted pick among eligible `input_N` slots |
 | Branch random switch | seeded pick among connected branch indices |
 | Branch selector | direct index lookup (no seed) |
+| Wildcard processor | Impact `process(populated_text, seed)` |
 | Seed chain | passthrough INT on Seeded Text Pool and Routing Switch |
 
 ## Install

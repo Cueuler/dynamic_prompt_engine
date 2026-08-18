@@ -1,16 +1,67 @@
 """Tests for BranchRandomSwitcher, RoutingSwitch, SeededTextPool, and helpers."""
 
+import hashlib
 import unittest
+from unittest.mock import patch
 from dynamic_prompt_engine.prompt_engine_nodes import (
     BranchRandomSwitcher,
     BranchSelector,
     RoutingSwitch,
     SeededTextPool,
     TagJoin,
+    chance_weight,
     connected_input_indices,
     MAX_BRANCHES,
+    normalize_chance_value,
+    numbered_input_indices,
     stream_key_from_unique_id,
 )
+
+# Spec copy of Routing Switch lottery (README): Default=2, 1.5x=3, 2x=4;
+# r = sha256(f"{seed}:node:{id}")[:16] as int % total; walk cumulative weights
+# in sorted input index order. Independent of prompt_engine_nodes.route.
+_SPEC_WEIGHTS = {"Default": 2, "1.5x": 3, "2x": 4}
+
+
+def _spec_weight(label):
+    if label is None:
+        label = "Default"
+    if isinstance(label, (list, tuple)):
+        label = label[0] if label else "Default"
+    text = str(label).strip() or "Default"
+    if text == "Off":
+        return None
+    return _SPEC_WEIGHTS.get(text, _SPEC_WEIGHTS["Default"])
+
+
+def _spec_stream_seed(master_seed, unique_id):
+    if isinstance(unique_id, (list, tuple)):
+        unique_id = unique_id[0] if unique_id else None
+    stream_key = f"node:{unique_id}" if unique_id is not None else "default"
+    key = f"{int(master_seed)}:{stream_key}"
+    return int(hashlib.sha256(key.encode("utf-8")).hexdigest()[:16], 16)
+
+
+def spec_pick(seed, unique_id, slots):
+    """slots: iterable of (index, text, chance). None=unconnected. Off skipped.
+    Connected empty/whitespace is eligible and wins as "". Sorted by index."""
+    eligible = []
+    for _index, text, chance in sorted(slots, key=lambda item: item[0]):
+        if text is None:
+            continue
+        stripped = str(text).strip()
+        weight = _spec_weight(chance)
+        if weight is None:
+            continue
+        eligible.append((weight, stripped))
+    if not eligible:
+        return ""
+    remaining = _spec_stream_seed(seed, unique_id) % sum(w for w, _ in eligible)
+    for weight, text in eligible:
+        remaining -= weight
+        if remaining < 0:
+            return text
+    return eligible[-1][1]
 
 
 class TestBranchRandomSwitcher(unittest.TestCase):
@@ -117,7 +168,7 @@ class TestRoutingSwitch(unittest.TestCase):
     def setUp(self):
         self.node = RoutingSwitch()
 
-    def test_three_default_picks_one_and_is_deterministic(self):
+    def test_three_default_picks_exact_winner_and_is_deterministic(self):
         args = dict(
             seed=42,
             unique_id="1",
@@ -128,9 +179,15 @@ class TestRoutingSwitch(unittest.TestCase):
             input_2="carol",
             chance_2="Default",
         )
+        expected = spec_pick(
+            42,
+            "1",
+            ((0, "alice", "Default"), (1, "bob", "Default"), (2, "carol", "Default")),
+        )
         text, seed = self.node.route(**args)
-        self.assertIn(text, ("alice", "bob", "carol"))
+        self.assertEqual(text, expected)
         self.assertEqual(seed, 42)
+        self.assertEqual(self.node.route(**args), (expected, 42))
         self.assertEqual(self.node.route(**args), self.node.route(**args))
 
     def test_strips_text_without_trailing_comma(self):
@@ -147,9 +204,13 @@ class TestRoutingSwitch(unittest.TestCase):
         self.assertEqual(text, "only")
         self.assertEqual(seed, 42)
 
-    def test_empty_and_whitespace_are_excluded(self):
-        text, _ = self.node.route(
-            seed=42,
+    def test_connected_empty_and_whitespace_can_win(self):
+        slots = (
+            (0, "keep", "Default"),
+            (1, "", "Default"),
+            (2, "   ", "2x"),
+        )
+        kwargs = dict(
             unique_id="1",
             input_0="keep",
             chance_0="Default",
@@ -158,7 +219,31 @@ class TestRoutingSwitch(unittest.TestCase):
             input_2="   ",
             chance_2="2x",
         )
-        self.assertEqual(text, "keep")
+        for s in range(50):
+            text, seed = self.node.route(seed=s, **kwargs)
+            self.assertEqual(text, spec_pick(s, "1", slots))
+            self.assertEqual(seed, s)
+
+    def test_off_empty_cannot_win_or_change_weights(self):
+        keep_only = ((1, "keep", "Default"),)
+        with_off_empty = ((0, "", "Off"), (1, "keep", "Default"))
+        for s in range(30):
+            without, seed_a = self.node.route(
+                seed=s, unique_id="1", input_1="keep", chance_1="Default"
+            )
+            with_off, seed_b = self.node.route(
+                seed=s,
+                unique_id="1",
+                input_0="",
+                chance_0="Off",
+                input_1="keep",
+                chance_1="Default",
+            )
+            self.assertEqual(without, spec_pick(s, "1", keep_only))
+            self.assertEqual(with_off, without)
+            self.assertEqual(with_off, spec_pick(s, "1", with_off_empty))
+            self.assertEqual(seed_a, s)
+            self.assertEqual(seed_b, s)
 
     def test_off_is_excluded_even_with_text(self):
         text, _ = self.node.route(
@@ -173,9 +258,11 @@ class TestRoutingSwitch(unittest.TestCase):
 
     def test_missing_chance_counts_as_default(self):
         args = dict(seed=42, unique_id="1", input_0="a", input_1="b")
-        text, _ = self.node.route(**args)
-        self.assertIn(text, ("a", "b"))
-        self.assertEqual(self.node.route(**args), self.node.route(**args))
+        expected = spec_pick(42, "1", ((0, "a", "Default"), (1, "b", "Default")))
+        text, seed = self.node.route(**args)
+        self.assertEqual(text, expected)
+        self.assertEqual(seed, 42)
+        self.assertEqual(self.node.route(**args), (expected, 42))
 
     def test_zero_eligible_returns_empty_text_and_passthrough_seed(self):
         self.assertEqual(self.node.route(seed=99, unique_id="1"), ("", 99))
@@ -185,8 +272,8 @@ class TestRoutingSwitch(unittest.TestCase):
                 unique_id="1",
                 input_0="nope",
                 chance_0="Off",
-                input_1="  ",
-                chance_1="Default",
+                input_1="also-off",
+                chance_1="Off",
             ),
             ("", 99),
         )
@@ -195,23 +282,24 @@ class TestRoutingSwitch(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.node.route(seed="not-an-int", unique_id="1", input_0="a")
 
-    def test_different_unique_ids_can_differ(self):
-        differing = 0
-        for s in range(10):
-            a, _ = self.node.route(
+    def test_unique_id_matches_spec_stream_for_every_seed(self):
+        slots = ((0, "x", "Default"), (1, "y", "Default"))
+        for s in range(50):
+            a, seed_a = self.node.route(
                 seed=s, unique_id="1", input_0="x", input_1="y"
             )
-            b, _ = self.node.route(
+            b, seed_b = self.node.route(
                 seed=s, unique_id="2", input_0="x", input_1="y"
             )
-            if a != b:
-                differing += 1
-        self.assertGreater(differing, 0)
+            self.assertEqual(a, spec_pick(s, "1", slots))
+            self.assertEqual(b, spec_pick(s, "2", slots))
+            self.assertEqual(seed_a, s)
+            self.assertEqual(seed_b, s)
 
-    def test_double_weight_wins_about_twice_as_often(self):
-        wins = {"a": 0, "b": 0}
+    def test_double_weight_matches_spec_lottery(self):
+        slots = ((0, "a", "Default"), (1, "b", "2x"))
         for s in range(300):
-            text, _ = self.node.route(
+            text, seed = self.node.route(
                 seed=s,
                 unique_id="1",
                 input_0="a",
@@ -219,10 +307,69 @@ class TestRoutingSwitch(unittest.TestCase):
                 input_1="b",
                 chance_1="2x",
             )
-            wins[text] += 1
-        self.assertGreater(wins["b"], wins["a"])
-        self.assertGreater(wins["b"], 150)
-        self.assertGreater(wins["a"], 50)
+            self.assertEqual(text, spec_pick(s, "1", slots))
+            self.assertEqual(seed, s)
+
+    def test_two_x_wins_twice_as_often_as_default(self):
+        """Uniform residues 0..5: Default weight 2, 2x weight 4 → 2 vs 4 wins."""
+        wins = {"a": 0, "b": 0}
+        with patch(
+            "dynamic_prompt_engine.prompt_engine_nodes.derive_stream_seed",
+            side_effect=range(6),
+        ):
+            for _ in range(6):
+                text, _ = self.node.route(
+                    seed=0,
+                    unique_id="1",
+                    input_0="a",
+                    chance_0="Default",
+                    input_1="b",
+                    chance_1="2x",
+                )
+                wins[text] += 1
+        self.assertEqual(wins["a"], 2)
+        self.assertEqual(wins["b"], 4)
+
+    def test_one_point_five_wins_one_and_a_half_times_default(self):
+        """Uniform residues 0..4: Default weight 2, 1.5x weight 3 → 2 vs 3 wins."""
+        wins = {"a": 0, "b": 0}
+        with patch(
+            "dynamic_prompt_engine.prompt_engine_nodes.derive_stream_seed",
+            side_effect=range(5),
+        ):
+            for _ in range(5):
+                text, _ = self.node.route(
+                    seed=0,
+                    unique_id="1",
+                    input_0="a",
+                    chance_0="Default",
+                    input_1="b",
+                    chance_1="1.5x",
+                )
+                wins[text] += 1
+        self.assertEqual(wins["a"], 2)
+        self.assertEqual(wins["b"], 3)
+
+    def test_off_never_wins_across_all_residues(self):
+        with patch(
+            "dynamic_prompt_engine.prompt_engine_nodes.derive_stream_seed",
+            side_effect=range(6),
+        ):
+            for _ in range(6):
+                text, seed = self.node.route(
+                    seed=0,
+                    unique_id="1",
+                    input_0="a",
+                    chance_0="Default",
+                    input_1="b",
+                    chance_1="Off",
+                )
+                self.assertEqual(text, "a")
+                self.assertEqual(seed, 0)
+        only_a, _ = self.node.route(
+            seed=0, unique_id="1", input_0="a", chance_0="Default"
+        )
+        self.assertEqual(only_a, "a")
 
     def test_optional_chance_schema(self):
         optional = RoutingSwitch.INPUT_TYPES()["optional"]
@@ -232,10 +379,10 @@ class TestRoutingSwitch(unittest.TestCase):
         input_schema = optional["input_7"]
         self.assertEqual(input_schema[0], "STRING")
 
-    def test_one_point_five_weight_wins_more_often_than_default(self):
-        wins = {"a": 0, "b": 0}
+    def test_one_point_five_weight_matches_spec_lottery(self):
+        slots = ((0, "a", "Default"), (1, "b", "1.5x"))
         for s in range(300):
-            text, _ = self.node.route(
+            text, seed = self.node.route(
                 seed=s,
                 unique_id="1",
                 input_0="a",
@@ -243,13 +390,16 @@ class TestRoutingSwitch(unittest.TestCase):
                 input_1="b",
                 chance_1="1.5x",
             )
-            wins[text] += 1
-        self.assertGreater(wins["b"], wins["a"])
-        self.assertGreater(wins["b"], 140)
-        self.assertGreater(wins["a"], 50)
+            self.assertEqual(text, spec_pick(s, "1", slots))
+            self.assertEqual(seed, s)
 
     def test_all_three_weights_never_pick_off(self):
-        live = {"default", "boost", "double"}
+        slots = (
+            (0, "default", "Default"),
+            (1, "boost", "1.5x"),
+            (2, "double", "2x"),
+            (3, "off-text", "Off"),
+        )
         for s in range(50):
             text, seed = self.node.route(
                 seed=s,
@@ -263,7 +413,8 @@ class TestRoutingSwitch(unittest.TestCase):
                 input_3="off-text",
                 chance_3="Off",
             )
-            self.assertIn(text, live)
+            self.assertEqual(text, spec_pick(s, "1", slots))
+            self.assertNotEqual(text, "off-text")
             self.assertEqual(seed, s)
 
     def test_single_survivor_after_filters_always_wins(self):
@@ -274,11 +425,19 @@ class TestRoutingSwitch(unittest.TestCase):
                 input_0="skip",
                 chance_0="Off",
                 input_1="  ",
-                chance_1="Default",
+                chance_1="Off",
                 input_3="only",
                 chance_3="2x",
             )
             self.assertEqual(text, "only")
+            self.assertEqual(seed, s)
+
+    def test_only_connected_empty_wins_empty_string(self):
+        for s in range(10):
+            text, seed = self.node.route(
+                seed=s, unique_id="1", input_0="", chance_0="Default"
+            )
+            self.assertEqual(text, "")
             self.assertEqual(seed, s)
 
     def test_combo_list_value_matches_string_label(self):
@@ -351,6 +510,85 @@ class TestRoutingSwitch(unittest.TestCase):
         )
         self.assertEqual(text, "red, blue")
         self.assertEqual(seed, 0)
+
+    def test_wildcard_syntax_is_not_expanded(self):
+        template = "{red|blue} __samples/flower__"
+        text, seed = self.node.route(
+            seed=7, unique_id="1", input_0=template, chance_0="Default"
+        )
+        self.assertEqual(text, template)
+        self.assertEqual(seed, 7)
+
+    def test_lottery_walks_sorted_index_order_not_kwargs_order(self):
+        kwargs = dict(
+            seed=11,
+            unique_id="1",
+            input_5="late",
+            chance_5="Default",
+            input_1="early",
+            chance_1="Default",
+        )
+        expected = spec_pick(
+            11, "1", ((1, "early", "Default"), (5, "late", "Default"))
+        )
+        text, seed = self.node.route(**kwargs)
+        self.assertEqual(text, expected)
+        self.assertEqual(seed, 11)
+
+    def test_unique_id_list_matches_scalar(self):
+        slots = ((0, "a", "Default"), (1, "b", "Default"))
+        for s in range(20):
+            as_str, _ = self.node.route(
+                seed=s, unique_id="9", input_0="a", input_1="b"
+            )
+            as_list, _ = self.node.route(
+                seed=s, unique_id=["9"], input_0="a", input_1="b"
+            )
+            self.assertEqual(as_str, spec_pick(s, "9", slots))
+            self.assertEqual(as_list, as_str)
+
+    def test_combo_list_matches_spec_pick(self):
+        slots = ((0, "plain", "Default"), (1, "boosted", "1.5x"))
+        for s in range(20):
+            text, seed = self.node.route(
+                seed=s,
+                unique_id="1",
+                input_0="plain",
+                chance_0=["Default"],
+                input_1="boosted",
+                chance_1=["1.5x"],
+            )
+            self.assertEqual(text, spec_pick(s, "1", slots))
+            self.assertEqual(seed, s)
+
+
+class TestChanceHelpers(unittest.TestCase):
+    def test_chance_weight_labels(self):
+        self.assertEqual(chance_weight("Default"), 2)
+        self.assertEqual(chance_weight("1.5x"), 3)
+        self.assertEqual(chance_weight("2x"), 4)
+        self.assertIsNone(chance_weight("Off"))
+        self.assertEqual(chance_weight(None), 2)
+        self.assertEqual(chance_weight(""), 2)
+        self.assertEqual(chance_weight("nope"), 2)
+        self.assertEqual(chance_weight("off"), 2)
+        self.assertEqual(chance_weight(["1.5x"]), 3)
+        self.assertEqual(chance_weight([]), 2)
+
+    def test_normalize_chance_value(self):
+        self.assertEqual(normalize_chance_value(None), "Default")
+        self.assertEqual(normalize_chance_value(["Off"]), "Off")
+        self.assertEqual(normalize_chance_value("  2x  "), "2x")
+
+    def test_numbered_input_indices_sorted_uncapped(self):
+        self.assertEqual(
+            numbered_input_indices(
+                {"input_10": "a", "input_2": "b", "chance_2": "Default"},
+                "input_",
+            ),
+            [2, 10],
+        )
+        self.assertEqual(numbered_input_indices({"chance_3": "2x"}, "input_"), [])
 
 
 class TestSeededTextPoolUniqueId(unittest.TestCase):

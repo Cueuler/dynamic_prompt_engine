@@ -86,7 +86,7 @@ def process_impact_wildcards(text, seed):
             from impact import wildcards
         else:
             raise RuntimeError(
-                "SeededTextPool wildcard syntax requires ComfyUI-Impact-Pack."
+                "Wildcard syntax requires ComfyUI-Impact-Pack."
             )
 
     return wildcards.process(text, seed)
@@ -269,17 +269,19 @@ class RoutingSwitch:
     """Seeded weighted pick among dynamic STRING inputs with per-slot chance combos."""
 
     DESCRIPTION = (
-        "Picks one wired input_N string. Unconnected sockets, empty/whitespace "
-        "text, and chance Off are excluded from the lottery. Remaining slots "
-        "share the roll: Default is 1×, 1.5x is 50% more than Default, 2x is "
-        "twice Default. Same seed+node id is deterministic.\n"
+        "Picks one wired input_N string. Unconnected sockets and chance Off "
+        "are excluded from the lottery. A connected empty or whitespace string "
+        "can win (output is stripped empty). Off cannot win and does not add "
+        "weight. Remaining slots share the roll: Default is 1×, 1.5x is 50% "
+        "more than Default, 2x is twice Default. Same seed+node id is "
+        "deterministic.\n"
         "\n"
         "Outputs the winning text (stripped, no extra commas) and the seed "
         "unchanged so you can wire Impact Pack wildcards yourself.\n"
         "\n"
         "Examples: three Default clothes groups → one of them, equal chance. "
         "input_0 Default and input_1 2x → input_1 wins about twice as often. "
-        "Only Off/empty left → empty text, seed still passed through."
+        "Only Off or unconnected left → empty text, seed still passed through."
     )
 
     @classmethod
@@ -313,12 +315,13 @@ class RoutingSwitch:
 
         eligible = []
         for index in numbered_input_indices(kwargs, "input_"):
-            text = nonempty_text(kwargs.get(f"input_{index}"))
-            if text is None:
+            raw = kwargs.get(f"input_{index}")
+            if raw is None:
                 continue
             weight = chance_weight(kwargs.get(f"chance_{index}"))
             if weight is None:
                 continue
+            text = str(raw).strip()
             eligible.append((weight, text))
 
         if not eligible:
