@@ -26,7 +26,7 @@ function connectedNodeTitle(node, input) {
   return title || null;
 }
 
-function createDynamicSocketHelpers(prefix, maxCount = Number.POSITIVE_INFINITY, options = {}) {
+function createDynamicSocketHelpers(prefix, maxCount = Number.POSITIVE_INFINITY) {
   function slotNumber(name) {
     const suffix = typeof name === "string" ? name.slice(prefix.length) : "";
     if (!/^\d+$/.test(suffix)) {
@@ -57,12 +57,8 @@ function createDynamicSocketHelpers(prefix, maxCount = Number.POSITIVE_INFINITY,
       if (!isDynamicInput(input)) {
         continue;
       }
-      const title = options.hideConnectedLabels
-        ? null
-        : connectedNodeTitle(node, input);
-      // Wired routing rows hide the slot name so it does not sit on the combo.
-      const nextLabel =
-        options.hideConnectedLabels && input.link != null ? " " : title || undefined;
+      const title = connectedNodeTitle(node, input);
+      const nextLabel = title || undefined;
       if (input.label !== nextLabel) {
         input.label = nextLabel;
         changed = true;
@@ -136,9 +132,7 @@ const MAX_BRANCHES = 15;
 const tagSockets = createDynamicSocketHelpers("tag_");
 const branchSockets = createDynamicSocketHelpers("branch_", MAX_BRANCHES);
 const inputSockets = createDynamicSocketHelpers("input_", MAX_BRANCHES);
-const routingSockets = createDynamicSocketHelpers("input_", Number.POSITIVE_INFINITY, {
-  hideConnectedLabels: true,
-});
+const routingSockets = createDynamicSocketHelpers("input_");
 const CHANCE_OPTIONS = ["Default", "Off", "1.5x", "2x"];
 
 const PREVIEW_DOM_INSET = 24;
@@ -500,27 +494,31 @@ function orderRoutingSwitchWidgets(node) {
       !isChanceWidget(widget) &&
       !isSpacerWidget(widget),
   );
-  const indices = new Set();
+  const spacerIndices = new Set();
+  const chanceIndices = new Set();
   for (const widget of widgets) {
     if (isChanceWidget(widget)) {
-      indices.add(Number.parseInt(widget.name.slice("chance_".length), 10));
+      chanceIndices.add(Number.parseInt(widget.name.slice("chance_".length), 10));
     }
     if (isSpacerWidget(widget)) {
-      indices.add(Number.parseInt(widget.name.slice("__spacer_".length), 10));
+      spacerIndices.add(Number.parseInt(widget.name.slice("__spacer_".length), 10));
     }
   }
-  const ordered = [];
-  for (const index of [...indices].sort((a, b) => a - b)) {
+  const spacers = [];
+  for (const index of [...spacerIndices].sort((a, b) => a - b)) {
     const spacer = widgets.find((widget) => widget.name === spacerWidgetName(index));
-    const chance = widgets.find((widget) => widget.name === chanceWidgetName(index));
     if (spacer) {
-      ordered.push(spacer);
-    }
-    if (chance) {
-      ordered.push(chance);
+      spacers.push(spacer);
     }
   }
-  node.widgets = [...seedBlock, ...ordered, ...rest];
+  const chances = [];
+  for (const index of [...chanceIndices].sort((a, b) => a - b)) {
+    const chance = widgets.find((widget) => widget.name === chanceWidgetName(index));
+    if (chance) {
+      chances.push(chance);
+    }
+  }
+  node.widgets = [...seedBlock, ...spacers, ...chances, ...rest];
 }
 
 function slotOffset() {
@@ -557,15 +555,9 @@ function layoutRoutingSwitchSlots(node) {
     if (!Number.isInteger(index)) {
       continue;
     }
-    if (input.link != null) {
-      input.label = " ";
-    } else if (input.label === " ") {
-      input.label = undefined;
-    }
-    const rowWidget =
-      byName.get(chanceWidgetName(index)) ?? byName.get(spacerWidgetName(index));
-    if (rowWidget != null && typeof rowWidget.y === "number") {
-      input.pos = [offset, rowWidget.y + offset];
+    const spacer = byName.get(spacerWidgetName(index));
+    if (spacer != null && typeof spacer.y === "number") {
+      input.pos = [offset, spacer.y + offset];
     }
   }
 
@@ -658,21 +650,20 @@ function syncRoutingSwitchChances(node) {
       }
     } else if (isSpacerWidget(widget)) {
       const index = Number.parseInt(widget.name.slice("__spacer_".length), 10);
-      if (!wanted.has(index) || connected.has(index)) {
+      if (!wanted.has(index)) {
         removeNodeWidget(node, widget);
       }
     }
   }
 
   for (const index of [...wanted].sort((a, b) => a - b)) {
+    ensureSpacerWidget(node, index);
     if (connected.has(index)) {
       ensureChanceWidget(
         node,
         index,
         node.__dpeChanceSaved[chanceWidgetName(index)],
       );
-    } else {
-      ensureSpacerWidget(node, index);
     }
   }
 
@@ -682,9 +673,9 @@ function syncRoutingSwitchChances(node) {
 }
 
 function registerRoutingSwitch(nodeType) {
-  // Layout: seed + Control after generate, then one row per input_N
-  // (chance if wired, spacer if spare). After arrange(), sockets sit in
-  // ComfyUI inset lanes next to those widgets.
+  // Layout: seed + Control after generate, spacer rows for every input_N,
+  // then chance combos for wired inputs only. After arrange(), input
+  // sockets follow spacer.y so they sit above the chance block.
   registerDynamicStringNode(nodeType, routingSockets, {
     afterLayout: (node) => {
       const pending = node.__dpeRoutingWidgets;
