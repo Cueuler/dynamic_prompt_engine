@@ -372,25 +372,16 @@ function chanceWidgetName(index) {
   return `chance_${index}`;
 }
 
-function spacerWidgetName(index) {
-  return `__spacer_${index}`;
-}
-
-const CHANCE_GAP_NAME = "__chance_gap";
-const WIDGET_GAP = 4;
-const WIDGET_STACK_PAD = 8;
-const ROUTING_MIN_WIDTH = 240;
-
 function isChanceWidget(widget) {
   return typeof widget?.name === "string" && /^chance_\d+$/.test(widget.name);
 }
 
-function isSpacerWidget(widget) {
-  return typeof widget?.name === "string" && /^__spacer_\d+$/.test(widget.name);
-}
-
-function isChanceGapWidget(widget) {
-  return widget?.name === CHANCE_GAP_NAME;
+function isLegacyRoutingLayoutWidget(widget) {
+  const name = widget?.name;
+  return (
+    name === "__chance_gap" ||
+    (typeof name === "string" && /^__spacer_\d+$/.test(name))
+  );
 }
 
 function isSeedControlWidget(widget) {
@@ -451,54 +442,6 @@ function removeNodeWidget(node, widget) {
   }
 }
 
-function ensureSpacerWidget(node, index) {
-  const name = spacerWidgetName(index);
-  const existing = (node.widgets ?? []).find((widget) => widget.name === name);
-  if (existing) {
-    return existing;
-  }
-  const spacer = {
-    name,
-    type: "spacer",
-    value: "",
-    serialize: false,
-    computeSize(width) {
-      return [typeof width === "number" && width > 0 ? width : 200, slotHeight()];
-    },
-    draw() {},
-  };
-  if (!Array.isArray(node.widgets)) {
-    node.widgets = [];
-  }
-  node.widgets.push(spacer);
-  return spacer;
-}
-
-function ensureChanceGapWidget(node) {
-  const existing = (node.widgets ?? []).find(isChanceGapWidget);
-  if (existing) {
-    return existing;
-  }
-  const gap = {
-    name: CHANCE_GAP_NAME,
-    type: "spacer",
-    value: "",
-    serialize: false,
-    computeSize(width) {
-      return [
-        typeof width === "number" && width > 0 ? width : ROUTING_MIN_WIDTH,
-        slotHeight() + WIDGET_STACK_PAD,
-      ];
-    },
-    draw() {},
-  };
-  if (!Array.isArray(node.widgets)) {
-    node.widgets = [];
-  }
-  node.widgets.push(gap);
-  return gap;
-}
-
 function routingInputDisplayName(node, index) {
   const input = (node.inputs ?? []).find(
     (slot) => routingInputIndex(slot.name) === index,
@@ -542,97 +485,28 @@ function orderRoutingSwitchWidgets(node) {
     (widget) =>
       !seedSet.has(widget) &&
       !isChanceWidget(widget) &&
-      !isSpacerWidget(widget) &&
-      !isChanceGapWidget(widget),
+      !isLegacyRoutingLayoutWidget(widget),
   );
-  const spacerIndices = new Set();
-  const chanceIndices = new Set();
-  for (const widget of widgets) {
-    if (isChanceWidget(widget)) {
-      chanceIndices.add(Number.parseInt(widget.name.slice("chance_".length), 10));
-    }
-    if (isSpacerWidget(widget)) {
-      spacerIndices.add(Number.parseInt(widget.name.slice("__spacer_".length), 10));
-    }
-  }
-  const spacers = [];
-  for (const index of [...spacerIndices].sort((a, b) => a - b)) {
-    const spacer = widgets.find((widget) => widget.name === spacerWidgetName(index));
-    if (spacer) {
-      spacers.push(spacer);
-    }
-  }
-  const chances = [];
-  for (const index of [...chanceIndices].sort((a, b) => a - b)) {
-    const chance = widgets.find((widget) => widget.name === chanceWidgetName(index));
-    if (chance) {
-      chances.push(chance);
-    }
-  }
-  const gap = widgets.find(isChanceGapWidget);
-  node.widgets = [
-    ...spacers,
-    ...(gap ? [gap] : []),
-    ...chances,
-    ...seedBlock,
-    ...rest,
-  ];
+  const chances = widgets
+    .filter(isChanceWidget)
+    .sort(
+      (a, b) =>
+        Number.parseInt(a.name.slice("chance_".length), 10) -
+        Number.parseInt(b.name.slice("chance_".length), 10),
+    );
+  node.widgets = [...chances, ...seedBlock, ...rest];
 }
 
-function slotOffset() {
-  return slotHeight() * 0.5;
-}
-
-function layoutRoutingSwitchSlots(node) {
-  const widgets = node.widgets ?? [];
-  const byName = new Map(widgets.map((widget) => [widget.name, widget]));
-  const offset = slotOffset();
-  const width = node.size?.[0] ?? ROUTING_MIN_WIDTH;
-
-  for (const widget of seedBlockWidgets(widgets)) {
-    widget.width = width;
-  }
-  for (const widget of widgets) {
-    if (isChanceWidget(widget)) {
-      widget.width = width;
-    }
-  }
-  labelChanceWidgets(node);
-
+function clearRoutingSwitchSlotPositions(node) {
+  delete node.widgets_start_y;
   for (const input of node.inputs ?? []) {
-    const index = routingInputIndex(input.name);
-    if (!Number.isInteger(index)) {
-      continue;
-    }
-    const spacer = byName.get(spacerWidgetName(index));
-    if (spacer != null && typeof spacer.y === "number") {
-      input.pos = [offset, spacer.y + offset];
+    if (Number.isInteger(routingInputIndex(input.name))) {
+      delete input.pos;
     }
   }
-
-  // Outputs stay at the top, matching ComfyUI's default vertical stack.
-  if (node.outputs?.[0]) {
-    node.outputs[0].pos = [width + 1 - offset, (0 + 0.7) * slotHeight()];
+  for (const output of node.outputs ?? []) {
+    delete output.pos;
   }
-  if (node.outputs?.[1]) {
-    node.outputs[1].pos = [width + 1 - offset, (1 + 0.7) * slotHeight()];
-  }
-}
-
-function computeRoutingSwitchSize(node) {
-  let widgetsHeight = 0;
-  for (const widget of node.widgets ?? []) {
-    if (widget.hidden) {
-      continue;
-    }
-    const size = widget.computeSize?.(ROUTING_MIN_WIDTH);
-    widgetsHeight += (size?.[1] ?? widgetRowHeight()) + WIDGET_GAP;
-  }
-  if (widgetsHeight > 0) {
-    widgetsHeight += WIDGET_STACK_PAD;
-  }
-  const startY = node.widgets_start_y ?? titleHeight();
-  return [ROUTING_MIN_WIDTH, startY + widgetsHeight];
 }
 
 function applyRoutingSwitchWidgetValues(node, widgetsValues) {
@@ -671,15 +545,10 @@ function syncRoutingSwitchChances(node) {
     }
   }
 
-  const wanted = new Set();
   const connected = new Set();
   for (const input of node.inputs ?? []) {
     const index = routingInputIndex(input.name);
-    if (!Number.isInteger(index)) {
-      continue;
-    }
-    wanted.add(index);
-    if (input.link != null) {
+    if (Number.isInteger(index) && input.link != null) {
       connected.add(index);
     }
   }
@@ -690,34 +559,30 @@ function syncRoutingSwitchChances(node) {
       if (!connected.has(index)) {
         removeNodeWidget(node, widget);
       }
-    } else if (isSpacerWidget(widget)) {
-      const index = Number.parseInt(widget.name.slice("__spacer_".length), 10);
-      if (!wanted.has(index)) {
-        removeNodeWidget(node, widget);
-      }
+    } else if (isLegacyRoutingLayoutWidget(widget)) {
+      removeNodeWidget(node, widget);
     }
   }
 
-  for (const index of [...wanted].sort((a, b) => a - b)) {
-    ensureSpacerWidget(node, index);
-    if (connected.has(index)) {
-      ensureChanceWidget(
-        node,
-        index,
-        node.__dpeChanceSaved[chanceWidgetName(index)],
-      );
-    }
+  for (const index of [...connected].sort((a, b) => a - b)) {
+    ensureChanceWidget(
+      node,
+      index,
+      node.__dpeChanceSaved[chanceWidgetName(index)],
+    );
   }
-  ensureChanceGapWidget(node);
 
   orderRoutingSwitchWidgets(node);
-  layoutRoutingSwitchSlots(node);
+  clearRoutingSwitchSlotPositions(node);
+  for (const widget of [...seedBlockWidgets(node.widgets ?? []), ...(node.widgets ?? []).filter(isChanceWidget)]) {
+    delete widget.width;
+  }
+  labelChanceWidgets(node);
 }
 
 function registerRoutingSwitch(nodeType) {
-  // Layout: input sockets under the title, a gap, chance combos named like
-  // their inputs, then seed + Control after generate at the bottom.
-  // text/seed outputs stay at the top.
+  // Default LiteGraph slot stack at the top. Chance combos (named like their
+  // inputs) then seed + Control after generate sit below as normal widgets.
   registerDynamicStringNode(nodeType, routingSockets, {
     afterLayout: (node) => {
       const pending = node.__dpeRoutingWidgets;
@@ -726,25 +591,14 @@ function registerRoutingSwitch(nodeType) {
         applyRoutingSwitchWidgetValues(node, pending);
         delete node.__dpeRoutingWidgets;
       }
-      const size = computeRoutingSwitchSize(node);
-      node.setSize([
-        Math.max(size[0], node.size?.[0] ?? 0),
-        Math.max(size[1], node.size?.[1] ?? 0),
-      ]);
     },
   });
 
-  nodeType.prototype.computeSize = function () {
-    return computeRoutingSwitchSize(this);
-  };
-
   const originalArrange = nodeType.prototype.arrange;
   nodeType.prototype.arrange = function () {
-    // Pin widgets under the title so input spacers are not pushed below the
-    // measured slot box (outputs stay at the top; inputs follow spacers).
-    this.widgets_start_y = titleHeight();
+    clearRoutingSwitchSlotPositions(this);
     const result = originalArrange?.apply(this, arguments);
-    layoutRoutingSwitchSlots(this);
+    labelChanceWidgets(this);
     return result;
   };
 
