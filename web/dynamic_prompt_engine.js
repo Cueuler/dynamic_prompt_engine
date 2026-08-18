@@ -3,7 +3,6 @@ import { app } from "../../scripts/app.js";
 const OUTPUT_WIDTH = 160;
 const OUTPUT_HEIGHT = 80;
 const PREVIEW_PLACEHOLDER = "Joined prompt preview (empty until run)…";
-const CLIP_REPORT_PREVIEW = "report_preview";
 const CLIP_REPORT_PLACEHOLDER = "Token report preview (empty until run)…";
 
 function graphOf(node) {
@@ -202,7 +201,7 @@ function otherWidgetsHeight(node, preview) {
 }
 
 function isWidgetBoundInput(input) {
-  return input?.widget != null || input?.name === "text";
+  return input?.widget != null || input?.name === "text" || input?.name === "report";
 }
 
 function freeSocketRowCount(node) {
@@ -273,7 +272,7 @@ function fitPreviewWidget(node, mode = "content", name = "text") {
   if (!widget?.inputEl) {
     return;
   }
-  const placeholder = name === CLIP_REPORT_PREVIEW ? CLIP_REPORT_PLACEHOLDER : PREVIEW_PLACEHOLDER;
+  const placeholder = name === "report" ? CLIP_REPORT_PLACEHOLDER : PREVIEW_PLACEHOLDER;
   stylePreviewWidget(node, name, placeholder);
   // Width first so scrollHeight reflects the correct wrap width.
   const width = previewDomWidth(node);
@@ -292,7 +291,7 @@ function setPreviewValue(node, text, name = "text") {
   if (!widget) {
     return;
   }
-  const placeholder = name === CLIP_REPORT_PREVIEW ? CLIP_REPORT_PLACEHOLDER : PREVIEW_PLACEHOLDER;
+  const placeholder = name === "report" ? CLIP_REPORT_PLACEHOLDER : PREVIEW_PLACEHOLDER;
   const value = Array.isArray(text) ? (text[0] ?? "") : (text ?? "");
   widget.value = value;
   if (widget.inputEl) {
@@ -632,23 +631,10 @@ function registerRoutingSwitch(nodeType) {
   };
 }
 
-function registerCLIPTokenReport(nodeType) {
-  function ensureReportPreviewWidget(node) {
-    let widget = previewWidget(node, CLIP_REPORT_PREVIEW);
-    if (widget) {
-      return widget;
-    }
-    widget = node.addWidget("text", CLIP_REPORT_PREVIEW, "", () => {}, {
-      multiline: true,
-    });
-    widget.serialize = false;
-    return widget;
-  }
-
+function registerOutputPreviewNode(nodeType, previewName, placeholder) {
   function runLayout(node) {
-    ensureReportPreviewWidget(node);
-    stylePreviewWidget(node, CLIP_REPORT_PREVIEW, CLIP_REPORT_PLACEHOLDER);
-    fitPreviewWidget(node, "content", CLIP_REPORT_PREVIEW);
+    stylePreviewWidget(node, previewName, placeholder);
+    fitPreviewWidget(node, "content", previewName);
     applyDefaultComputedSize(node);
   }
 
@@ -664,7 +650,7 @@ function registerCLIPTokenReport(nodeType) {
   const originalOnResize = nodeType.prototype.onResize;
   nodeType.prototype.onResize = function () {
     const result = originalOnResize?.apply(this, arguments);
-    fitPreviewWidget(this, "resize", CLIP_REPORT_PREVIEW);
+    fitPreviewWidget(this, "resize", previewName);
     return result;
   };
 
@@ -679,7 +665,7 @@ function registerCLIPTokenReport(nodeType) {
   const originalExecuted = nodeType.prototype.onExecuted;
   nodeType.prototype.onExecuted = function (message) {
     const result = originalExecuted?.apply(this, arguments);
-    setPreviewValue(this, message?.text, CLIP_REPORT_PREVIEW);
+    setPreviewValue(this, message?.[previewName], previewName);
     return result;
   };
 }
@@ -902,7 +888,7 @@ app.registerExtension({
   name: "dynamic-prompt-engine.dynamic-sockets",
   beforeRegisterNodeDef(nodeType, nodeData) {
     if (nodeData.name === "CLIPTokenReport") {
-      registerCLIPTokenReport(nodeType);
+      registerOutputPreviewNode(nodeType, "report", CLIP_REPORT_PLACEHOLDER);
       registerSchemaSync(nodeType, nodeData);
       return;
     }

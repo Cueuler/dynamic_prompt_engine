@@ -5,6 +5,7 @@ CLIP_WINDOW_THRESHOLD = 256
 ENCODER_LABELS = {
     "l": "CLIP-L",
     "g": "CLIP-G",
+    "l/g": "CLIP-L / CLIP-G",
     "t5xxl": "T5-XXL",
 }
 
@@ -23,7 +24,7 @@ def encoder_tokenizer(root_tokenizer, name):
     """Resolve the sub-tokenizer for an encoder key from clip.tokenize()."""
     if root_tokenizer is None:
         return None
-    if name == "l" and hasattr(root_tokenizer, "clip_l"):
+    if name in ("l", "l/g") and hasattr(root_tokenizer, "clip_l"):
         return root_tokenizer.clip_l
     if name == "g" and hasattr(root_tokenizer, "clip_g"):
         return root_tokenizer.clip_g
@@ -61,6 +62,27 @@ def content_from_chunk(chunk, start_token, end_token):
 def content_token_count(content):
     """Count content slots; embeddings count as one each."""
     return len(content)
+
+
+def _content_token_key(token):
+    if isinstance(token, int):
+        return ("int", token)
+    return ("embed", id(token))
+
+
+def content_signature(chunks, tokenizer):
+    """Comparable chunk content signature (ignores padding after EOS)."""
+    window = _tokenizer_window(tokenizer)
+    if window is None:
+        return tuple(tuple(_content_token_key(_pair_token(pair)) for pair in chunk) for chunk in chunks)
+
+    start_token = window["start_token"]
+    end_token = window["end_token"]
+    signature = []
+    for chunk in chunks:
+        content = content_from_chunk(chunk, start_token, end_token)
+        signature.append(tuple(_content_token_key(_pair_token(pair)) for pair in content))
+    return tuple(signature)
 
 
 def _decode_ids(token_ids, tokenizer):
@@ -171,9 +193,9 @@ def _format_window_section(label, chunks, tokenizer, window):
     return "\n".join(lines).rstrip()
 
 
-def format_encoder_section(name, chunks, root_tokenizer):
+def format_encoder_section(name, chunks, root_tokenizer, label=None):
     tokenizer = encoder_tokenizer(root_tokenizer, name)
-    label = encoder_label(name)
+    label = label or encoder_label(name)
     window = _tokenizer_window(tokenizer)
 
     if window is None:
@@ -182,14 +204,35 @@ def format_encoder_section(name, chunks, root_tokenizer):
     return _format_window_section(label, chunks, tokenizer, window)
 
 
+def _iter_report_sections(token_dict, root_tokenizer):
+    """Yield (encoder_name, chunks, label) with identical SDXL L/G merged."""
+    names = list(token_dict.keys())
+    merge_l_g = False
+
+    if "l" in token_dict and "g" in token_dict:
+        tok_l = encoder_tokenizer(root_tokenizer, "l")
+        tok_g = encoder_tokenizer(root_tokenizer, "g")
+        merge_l_g = content_signature(token_dict["l"], tok_l) == content_signature(
+            token_dict["g"], tok_g
+        )
+
+    for name in names:
+        if merge_l_g and name == "l":
+            yield "l/g", token_dict["l"], encoder_label("l/g")
+            continue
+        if merge_l_g and name == "g":
+            continue
+        yield name, token_dict[name], encoder_label(name)
+
+
 def format_clip_token_report(token_dict, root_tokenizer):
     """Build the full multi-encoder report string."""
     if not token_dict:
         return ""
 
     sections = []
-    for name, chunks in token_dict.items():
-        sections.append(format_encoder_section(name, chunks, root_tokenizer))
+    for name, chunks, label in _iter_report_sections(token_dict, root_tokenizer):
+        sections.append(format_encoder_section(name, chunks, root_tokenizer, label=label))
 
     return "\n\n".join(section for section in sections if section)
 
@@ -202,9 +245,8 @@ class CLIPTokenReport:
         "ComfyUI splits it into 77-token CLIP windows (75 content tokens each "
         "for SDXL CLIP-L/G). Inspect-only: does not output conditioning.\n"
         "\n"
-        "Wire the same CLIP and prompt you use with CLIPTextEncode. The on-node "
-        "preview and report STRING show per-encoder chunk usage and reconstructed "
-        "text per chunk."
+        "Wire prompt text from upstream nodes (socket input). The on-node report "
+        "preview and report STRING output show chunk usage and reconstructed text."
     )
 
     @classmethod
@@ -216,8 +258,16 @@ class CLIPTokenReport:
                     "STRING",
                     {
                         "default": "",
+                        "forceInput": True,
+                    },
+                ),
+                "report": (
+                    "STRING",
+                    {
+                        "default": "",
                         "multiline": True,
                         "dynamicPrompts": False,
+                        "placeholder": "Token report preview (empty until run)…",
                     },
                 ),
             },
@@ -229,14 +279,15 @@ class CLIPTokenReport:
     CATEGORY = "Dynamic Prompt Engine"
     OUTPUT_NODE = True
 
-    def inspect(self, clip, text):
+    def inspect(self, clip, text, report=""):
+        del report  # preview widget only; filled from execution result
         if clip is None:
             raise RuntimeError(CLIP_INVALID_MESSAGE)
 
         tokens = clip.tokenize(text)
-        report = format_clip_token_report(tokens, clip.tokenizer)
+        report_text = format_clip_token_report(tokens, clip.tokenizer)
 
         return {
-            "ui": {"text": [report]},
-            "result": (report,),
+            "ui": {"report": [report_text]},
+            "result": (report_text,),
         }

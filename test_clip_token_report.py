@@ -7,6 +7,7 @@ from dynamic_prompt_engine.clip_token_report import (
     CLIPTokenReport,
     CLIP_INVALID_MESSAGE,
     content_from_chunk,
+    content_signature,
     content_token_count,
     encoder_tokenizer,
     format_clip_token_report,
@@ -119,13 +120,31 @@ class TestFormatClipTokenReport(unittest.TestCase):
         self.assertIn("[chunk 1/2]  75/75", report)
         self.assertIn("[chunk 2/2]  5/75", report)
 
-    def test_dual_l_and_g_sections(self):
-        chunk = make_chunk([100, 101], pad_count=73)
+    def test_dual_l_and_g_merge_when_identical(self):
+        chunk_l = make_chunk([100, 101], pad_count=73)
+        chunk_g = make_chunk([100, 101], pad_token=PAD_G, pad_count=73)
         root = FakeSDXLTokenizer()
-        report = format_clip_token_report({"l": [chunk], "g": [chunk]}, root)
+        report = format_clip_token_report({"l": [chunk_l], "g": [chunk_g]}, root)
+        self.assertIn("CLIP-L / CLIP-G  window 77, content capacity 75", report)
+        self.assertNotIn("\nCLIP-G  window", report)
+        self.assertEqual(report.count("hello world"), 1)
+
+    def test_dual_l_and_g_split_when_different(self):
+        chunk_l = make_chunk([100, 101], pad_count=73)
+        chunk_g = make_chunk([100, 102], pad_token=PAD_G, pad_count=73)
+        root = FakeSDXLTokenizer()
+        report = format_clip_token_report({"l": [chunk_l], "g": [chunk_g]}, root)
         self.assertIn("CLIP-L  window 77, content capacity 75", report)
         self.assertIn("CLIP-G  window 77, content capacity 75", report)
-        self.assertLess(report.index("CLIP-L"), report.index("CLIP-G"))
+
+    def test_content_signature_ignores_padding(self):
+        root = FakeSDXLTokenizer()
+        chunk_l = make_chunk([100, 101], pad_count=73)
+        chunk_g = make_chunk([100, 101], pad_token=PAD_G, pad_count=73)
+        self.assertEqual(
+            content_signature([chunk_l], root.clip_l),
+            content_signature([chunk_g], root.clip_g),
+        )
 
     def test_empty_prompt(self):
         chunks = {"l": [make_chunk([], pad_count=75)]}
@@ -164,22 +183,28 @@ class TestCLIPTokenReportNode(unittest.TestCase):
     def setUp(self):
         self.node = CLIPTokenReport()
 
+    def test_input_schema(self):
+        required = CLIPTokenReport.INPUT_TYPES()["required"]
+        self.assertTrue(required["text"][1].get("forceInput"))
+        self.assertTrue(required["report"][1].get("multiline"))
+        self.assertNotIn("multiline", required["text"][1])
+
     def test_inspect_calls_tokenize_and_returns_ui(self):
         clip = MagicMock()
         clip.tokenizer = FakeClipTokenizer()
         clip.tokenize.return_value = {"l": [make_chunk([100, 101], pad_count=73)]}
 
-        result = self.node.inspect(clip, "hello world")
+        result = self.node.inspect(clip, "hello world", report="")
 
         clip.tokenize.assert_called_once_with("hello world")
         self.assertIn("ui", result)
         self.assertIn("result", result)
-        self.assertEqual(result["ui"]["text"][0], result["result"][0])
+        self.assertEqual(result["ui"]["report"][0], result["result"][0])
         self.assertIn("CLIP-L", result["result"][0])
 
     def test_none_clip_raises(self):
         with self.assertRaises(RuntimeError) as ctx:
-            self.node.inspect(None, "test")
+            self.node.inspect(None, "test", report="")
         self.assertIn(CLIP_INVALID_MESSAGE, str(ctx.exception))
 
 

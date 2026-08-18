@@ -59,7 +59,7 @@ Category: **Dynamic Prompt Engine**
 | **Branch Random Switcher** | `seed` | `branch_0`...`branch_14` | `text`, `branch` |
 | **Branch Selector** | `branch` | `input_0`...`input_14` | `text` |
 | **Tag Join** | `text` preview | dynamic `tag_0`... | `prompt` |
-| **CLIP Token Report** | `clip`, `text` | -- | `report` |
+| **CLIP Token Report** | `clip`, `text` (socket) | `report` preview | `report` |
 | **Resolution Switch** | `resolution`, `batch_size`, `clip_scale` | -- | `width`, `height`, `latent`, `scaled_width`, `scaled_height` |
 
 ### Seeded Text Pool
@@ -152,18 +152,19 @@ A selector marker like `branch 2 skipped` is non-empty, so it is included in the
 
 Inspect-only node: tokenizes the prompt with ComfyUI's connected CLIP via `clip.tokenize(text)` and shows how the encoder splits it into fixed windows. Does **not** output conditioning — keep using stock **CLIPTextEncode** for that. Wire the **same CLIP** and **same prompt** you encode with.
 
-For SDXL / Illustrious XL, CLIP-L and CLIP-G each use a **77-token window**: 1 BOS + **75 content** + 1 EOS + padding. Long prompts become multiple chunks encoded separately and concatenated; the report lists each chunk with `used/capacity` and reconstructed text (BOS/EOS/PAD hidden).
+**Layout:** `text` is a socket input (wire from Tag Join or upstream). The multiline **report** widget on the node is a read-only preview filled after queue/run, matching the Tag Join pattern.
 
-- **On-node preview**: read-only `report_preview` widget (filled after queue/run).
+For SDXL / Illustrious XL, CLIP-L and CLIP-G each use a **77-token window**: 1 BOS + **75 content** + 1 EOS + padding. When both encoders chunk identically (normal prompts), the report shows one **CLIP-L / CLIP-G** section instead of duplicating the same breakdown.
+
+- **On-node preview**: multiline `report` widget (filled after queue/run).
 - **STRING output**: same formatted report for Show Text or downstream nodes.
-- **Per-encoder sections**: `CLIP-L`, `CLIP-G`, etc., even when reconstructed text matches.
 - **Overflow**: `overflow: yes` when total content tokens exceed 75 (multiple chunks).
 - **Textual inversions**: non-integer token slots appear as `[embedding]` in reconstructed text.
 
 Example report excerpt:
 
 ```text
-CLIP-L  window 77, content capacity 75
+CLIP-L / CLIP-G  window 77, content capacity 75
 chunks: 2    content tokens: 80    overflow: yes
 
 [chunk 1/2]  75/75
