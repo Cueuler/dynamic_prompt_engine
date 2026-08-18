@@ -36,14 +36,7 @@ class FakeClipTokenizer:
             103: "tokens</w>",
         }
 
-    def untokenize(self, token_weight_pair):
-        return [
-            (pair, self.inv_vocab.get(pair[0], f"[{pair[0]}]"))
-            for pair in token_weight_pair
-        ]
-
     def decode(self, token_ids, skip_special_tokens=True):
-        # Simulates HF decode inserting spaces between every token (avoid in production).
         return " ".join(self.inv_vocab.get(token_id, f"t{token_id}") for token_id in token_ids)
 
 
@@ -91,22 +84,18 @@ class TestReconstructContent(unittest.TestCase):
     def test_decodes_integer_tokens(self):
         tokenizer = FakeClipTokenizer()
         content = [(100, 1.0), (101, 1.0)]
-        self.assertEqual(reconstruct_content(content, tokenizer), "hello world ")
+        self.assertEqual(reconstruct_content(content, tokenizer), "hello</w> world</w>")
 
     def test_embedding_placeholder(self):
         tokenizer = FakeClipTokenizer()
         embedding = object()
         content = [(100, 1.0), (embedding, 1.0), (101, 1.0)]
-        self.assertEqual(reconstruct_content(content, tokenizer), "hello [embedding] world ")
+        self.assertEqual(
+            reconstruct_content(content, tokenizer),
+            "hello</w> [embedding] world</w>",
+        )
 
-    def test_inv_vocab_fallback(self):
-        class VocabOnlyTokenizer:
-            inv_vocab = {100: "hel</w>", 101: "lo"}
-
-        content = [(100, 1.0), (101, 1.0)]
-        self.assertEqual(reconstruct_content(content, VocabOnlyTokenizer()), "hel lo")
-
-    def test_subword_concatenation_without_hf_decode_spaces(self):
+    def test_decode_joins_subwords_with_spaces(self):
         tokenizer = FakeClipTokenizer(
             inv_vocab={
                 200: "1",
@@ -117,9 +106,12 @@ class TestReconstructContent(unittest.TestCase):
             }
         )
         content = [(200, 1.0), (201, 1.0)]
-        self.assertEqual(reconstruct_content(content, tokenizer), "1girl ")
+        self.assertEqual(reconstruct_content(content, tokenizer), "1 girl</w>")
         content = [(202, 1.0), (203, 1.0), (204, 1.0)]
-        self.assertEqual(reconstruct_content(content, tokenizer), "lace - up ")
+        self.assertEqual(
+            reconstruct_content(content, tokenizer),
+            "lace</w> -</w> up</w>",
+        )
 
 
 class TestFormatClipTokenReport(unittest.TestCase):
@@ -129,7 +121,7 @@ class TestFormatClipTokenReport(unittest.TestCase):
         self.assertIn("CLIP-L  window 77, content capacity 75", report)
         self.assertIn("chunks: 1    content tokens: 2    overflow: no", report)
         self.assertIn("[chunk 1/1]  2/75", report)
-        self.assertIn("hello world", report)
+        self.assertIn("hello</w> world</w>", report)
 
     def test_two_chunk_overflow(self):
         content_ids = list(range(100, 180))
@@ -149,7 +141,7 @@ class TestFormatClipTokenReport(unittest.TestCase):
         report = format_clip_token_report({"l": [chunk_l], "g": [chunk_g]}, root)
         self.assertIn("CLIP-L / CLIP-G  window 77, content capacity 75", report)
         self.assertNotIn("\nCLIP-G  window", report)
-        self.assertEqual(report.count("hello world"), 1)
+        self.assertEqual(report.count("hello</w> world</w>"), 1)
 
     def test_dual_l_and_g_split_when_different(self):
         chunk_l = make_chunk([100, 101], pad_count=73)

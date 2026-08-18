@@ -85,30 +85,12 @@ def content_signature(chunks, tokenizer):
     return tuple(signature)
 
 
-def _strip_clip_word_markers(text):
-    """Turn CLIP BPE word-end markers into spaces."""
-    return text.replace("</w>", " ")
-
-
 def _decode_ids(token_ids, tokenizer):
     if not token_ids:
         return ""
-
-    untokenize = getattr(tokenizer, "untokenize", None)
-    if callable(untokenize):
-        pairs = [(token_id, 1.0) for token_id in token_ids]
-        text = "".join(piece for _, piece in untokenize(pairs))
-        return _strip_clip_word_markers(text)
-
-    inv_vocab = getattr(tokenizer, "inv_vocab", {})
-    if inv_vocab:
-        text = "".join(inv_vocab.get(token_id, f"[{token_id}]") for token_id in token_ids)
-        return _strip_clip_word_markers(text)
-
     decode = getattr(tokenizer, "decode", None)
     if callable(decode):
         return decode(token_ids, skip_special_tokens=True)
-
     return ""
 
 
@@ -265,8 +247,8 @@ class CLIPTokenReport:
         "ComfyUI splits it into 77-token CLIP windows (75 content tokens each "
         "for SDXL CLIP-L/G). Inspect-only: does not output conditioning.\n"
         "\n"
-        "Wire prompt text from upstream nodes (socket input). The on-node report "
-        "preview and report STRING output show chunk usage and reconstructed text."
+        "Wire prompt text from upstream nodes (socket input). Chunk text lines use "
+        "tokenizer.decode() on each chunk's content token ids."
     )
 
     @classmethod
