@@ -5,6 +5,7 @@ from .prompt_engine_nodes import (
     BranchSelector,
     TagJoin,
 )
+from .clip_token_report import CLIPTokenReport
 
 try:
     from .resolution_node import ResolutionSwitch
@@ -17,6 +18,7 @@ NODE_CLASS_MAPPINGS = {
     "BranchRandomSwitcher": BranchRandomSwitcher,
     "BranchSelector": BranchSelector,
     "TagJoin": TagJoin,
+    "CLIPTokenReport": CLIPTokenReport,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -25,6 +27,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "BranchRandomSwitcher": "Branch Random Switcher",
     "BranchSelector": "Branch Selector",
     "TagJoin": "Tag Join",
+    "CLIPTokenReport": "CLIP Token Report",
 }
 
 if ResolutionSwitch is not None:

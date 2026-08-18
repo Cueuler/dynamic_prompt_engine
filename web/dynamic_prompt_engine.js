@@ -3,6 +3,8 @@ import { app } from "../../scripts/app.js";
 const OUTPUT_WIDTH = 160;
 const OUTPUT_HEIGHT = 80;
 const PREVIEW_PLACEHOLDER = "Joined prompt preview (empty until run)…";
+const CLIP_REPORT_PREVIEW = "report_preview";
+const CLIP_REPORT_PLACEHOLDER = "Token report preview (empty until run)…";
 
 function graphOf(node) {
   return node.graph ?? app.graph;
@@ -164,9 +166,9 @@ function applyDefaultComputedSize(node) {
   ]);
 }
 
-/** Tag Join preview only — never fall back to another widget. */
-function previewWidget(node) {
-  return (node.widgets ?? []).find((widget) => widget?.name === "text") ?? null;
+/** Preview widget by name — Tag Join uses "text"; CLIP Token Report uses "report_preview". */
+function previewWidget(node, name = "text") {
+  return (node.widgets ?? []).find((widget) => widget?.name === name) ?? null;
 }
 
 function ensurePreviewComputeSize(widget) {
@@ -243,8 +245,8 @@ function syncPreviewDom(node, widget) {
   widget.inputEl.style.height = `${height}px`;
 }
 
-function stylePreviewWidget(node) {
-  const widget = previewWidget(node);
+function stylePreviewWidget(node, name = "text", placeholder = PREVIEW_PLACEHOLDER) {
+  const widget = previewWidget(node, name);
   if (!widget?.inputEl) {
     return;
   }
@@ -256,7 +258,7 @@ function stylePreviewWidget(node) {
   widget.inputEl.style.maxHeight = "none";
   widget.inputEl.style.resize = "none";
   if (!widget.inputEl.placeholder) {
-    widget.inputEl.placeholder = PREVIEW_PLACEHOLDER;
+    widget.inputEl.placeholder = placeholder;
   }
   ensurePreviewComputeSize(widget);
 }
@@ -266,12 +268,13 @@ function stylePreviewWidget(node) {
  *   content — height from textarea scrollHeight (grow with joined text)
  *   resize  — height from remaining node space (manual drag)
  */
-function fitPreviewWidget(node, mode = "content") {
-  const widget = previewWidget(node);
+function fitPreviewWidget(node, mode = "content", name = "text") {
+  const widget = previewWidget(node, name);
   if (!widget?.inputEl) {
     return;
   }
-  stylePreviewWidget(node);
+  const placeholder = name === CLIP_REPORT_PREVIEW ? CLIP_REPORT_PLACEHOLDER : PREVIEW_PLACEHOLDER;
+  stylePreviewWidget(node, name, placeholder);
   // Width first so scrollHeight reflects the correct wrap width.
   const width = previewDomWidth(node);
   widget.inputEl.style.width = `${width}px`;
@@ -284,18 +287,19 @@ function fitPreviewWidget(node, mode = "content") {
   syncPreviewDom(node, widget);
 }
 
-function setPreviewValue(node, text) {
-  const widget = previewWidget(node);
+function setPreviewValue(node, text, name = "text") {
+  const widget = previewWidget(node, name);
   if (!widget) {
     return;
   }
+  const placeholder = name === CLIP_REPORT_PREVIEW ? CLIP_REPORT_PLACEHOLDER : PREVIEW_PLACEHOLDER;
   const value = Array.isArray(text) ? (text[0] ?? "") : (text ?? "");
   widget.value = value;
   if (widget.inputEl) {
     widget.inputEl.value = value;
   }
-  stylePreviewWidget(node);
-  fitPreviewWidget(node, "content");
+  stylePreviewWidget(node, name, placeholder);
+  fitPreviewWidget(node, "content", name);
   applyDefaultComputedSize(node);
   graphOf(node)?.setDirtyCanvas?.(true, false);
 }
@@ -628,6 +632,58 @@ function registerRoutingSwitch(nodeType) {
   };
 }
 
+function registerCLIPTokenReport(nodeType) {
+  function ensureReportPreviewWidget(node) {
+    let widget = previewWidget(node, CLIP_REPORT_PREVIEW);
+    if (widget) {
+      return widget;
+    }
+    widget = node.addWidget("text", CLIP_REPORT_PREVIEW, "", () => {}, {
+      multiline: true,
+    });
+    widget.serialize = false;
+    return widget;
+  }
+
+  function runLayout(node) {
+    ensureReportPreviewWidget(node);
+    stylePreviewWidget(node, CLIP_REPORT_PREVIEW, CLIP_REPORT_PLACEHOLDER);
+    fitPreviewWidget(node, "content", CLIP_REPORT_PREVIEW);
+    applyDefaultComputedSize(node);
+  }
+
+  const originalCreated = nodeType.prototype.onNodeCreated;
+  nodeType.prototype.onNodeCreated = function () {
+    const result = originalCreated?.apply(this, arguments);
+    queueMicrotask(() => {
+      runLayout(this);
+    });
+    return result;
+  };
+
+  const originalOnResize = nodeType.prototype.onResize;
+  nodeType.prototype.onResize = function () {
+    const result = originalOnResize?.apply(this, arguments);
+    fitPreviewWidget(this, "resize", CLIP_REPORT_PREVIEW);
+    return result;
+  };
+
+  const originalOnConfigure = nodeType.prototype.onConfigure;
+  nodeType.prototype.onConfigure = function () {
+    originalOnConfigure?.apply(this, arguments);
+    requestAnimationFrame(() => {
+      runLayout(this);
+    });
+  };
+
+  const originalExecuted = nodeType.prototype.onExecuted;
+  nodeType.prototype.onExecuted = function (message) {
+    const result = originalExecuted?.apply(this, arguments);
+    setPreviewValue(this, message?.text, CLIP_REPORT_PREVIEW);
+    return result;
+  };
+}
+
 const ENGINE_NODE_NAMES = new Set([
   "SeededTextPool",
   "RoutingSwitch",
@@ -845,6 +901,12 @@ function registerSchemaSync(nodeType, nodeData) {
 app.registerExtension({
   name: "dynamic-prompt-engine.dynamic-sockets",
   beforeRegisterNodeDef(nodeType, nodeData) {
+    if (nodeData.name === "CLIPTokenReport") {
+      registerCLIPTokenReport(nodeType);
+      registerSchemaSync(nodeType, nodeData);
+      return;
+    }
+
     if (!ENGINE_NODE_NAMES.has(nodeData.name)) {
       return;
     }
