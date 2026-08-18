@@ -131,6 +131,8 @@ const MAX_BRANCHES = 15;
 const tagSockets = createDynamicSocketHelpers("tag_");
 const branchSockets = createDynamicSocketHelpers("branch_", MAX_BRANCHES);
 const inputSockets = createDynamicSocketHelpers("input_", MAX_BRANCHES);
+const routingSockets = createDynamicSocketHelpers("input_");
+const CHANCE_OPTIONS = ["Default", "Off", "1.5x", "2x"];
 
 const PREVIEW_DOM_INSET = 24;
 const PREVIEW_CHROME_PAD = 24;
@@ -299,18 +301,24 @@ function setPreviewValue(node, text) {
 }
 
 function registerDynamicStringNode(nodeType, sockets, options = {}) {
-  const { withOutputPreview = false } = options;
+  const { withOutputPreview = false, afterLayout = null } = options;
+
+  function runLayout(node) {
+    sockets.setVisibleInputs(node, sockets.visibleCount(node));
+    sockets.refreshInputLabels(node);
+    afterLayout?.(node);
+    if (withOutputPreview) {
+      stylePreviewWidget(node);
+      fitPreviewWidget(node, "content");
+    }
+    applyDefaultComputedSize(node);
+  }
 
   const originalCreated = nodeType.prototype.onNodeCreated;
   nodeType.prototype.onNodeCreated = function () {
     const result = originalCreated?.apply(this, arguments);
     queueMicrotask(() => {
-      sockets.setVisibleInputs(this, sockets.visibleCount(this));
-      if (withOutputPreview) {
-        stylePreviewWidget(this);
-        fitPreviewWidget(this, "content");
-      }
-      applyDefaultComputedSize(this);
+      runLayout(this);
     });
     return result;
   };
@@ -327,11 +335,7 @@ function registerDynamicStringNode(nodeType, sockets, options = {}) {
     nodeType.prototype.onConfigure = function () {
       originalOnConfigure?.apply(this, arguments);
       requestAnimationFrame(() => {
-        sockets.setVisibleInputs(this, sockets.visibleCount(this));
-        sockets.refreshInputLabels(this);
-        stylePreviewWidget(this);
-        fitPreviewWidget(this, "content");
-        applyDefaultComputedSize(this);
+        runLayout(this);
       });
     };
 
@@ -346,9 +350,7 @@ function registerDynamicStringNode(nodeType, sockets, options = {}) {
     nodeType.prototype.onConfigure = function () {
       originalOnConfigure?.apply(this, arguments);
       requestAnimationFrame(() => {
-        sockets.setVisibleInputs(this, sockets.visibleCount(this));
-        sockets.refreshInputLabels(this);
-        applyDefaultComputedSize(this);
+        runLayout(this);
       });
     };
   }
@@ -357,20 +359,278 @@ function registerDynamicStringNode(nodeType, sockets, options = {}) {
   nodeType.prototype.onConnectionsChange = function () {
     const result = originalConnectionsChange?.apply(this, arguments);
     queueMicrotask(() => {
-      sockets.setVisibleInputs(this, sockets.visibleCount(this));
-      sockets.refreshInputLabels(this);
-      if (withOutputPreview) {
-        stylePreviewWidget(this);
-        fitPreviewWidget(this, "content");
-      }
-      applyDefaultComputedSize(this);
+      runLayout(this);
     });
     return result;
   };
 }
 
+function chanceWidgetName(index) {
+  return `chance_${index}`;
+}
+
+function spacerWidgetName(index) {
+  return `__spacer_${index}`;
+}
+
+function isChanceWidget(widget) {
+  return typeof widget?.name === "string" && /^chance_\d+$/.test(widget.name);
+}
+
+function isSpacerWidget(widget) {
+  return typeof widget?.name === "string" && /^__spacer_\d+$/.test(widget.name);
+}
+
+function routingInputIndex(name) {
+  if (typeof name !== "string" || !name.startsWith("input_")) {
+    return Number.NaN;
+  }
+  const suffix = name.slice("input_".length);
+  return /^\d+$/.test(suffix) ? Number.parseInt(suffix, 10) : Number.NaN;
+}
+
+function removeNodeWidget(node, widget) {
+  if (!widget) {
+    return;
+  }
+  if (typeof node.removeWidget === "function") {
+    node.removeWidget(widget);
+    return;
+  }
+  const index = node.widgets?.indexOf(widget) ?? -1;
+  if (index >= 0) {
+    node.widgets.splice(index, 1);
+  }
+}
+
+function ensureSpacerWidget(node, index) {
+  const name = spacerWidgetName(index);
+  const existing = (node.widgets ?? []).find((widget) => widget.name === name);
+  if (existing) {
+    return existing;
+  }
+  const spacer = {
+    name,
+    type: "spacer",
+    value: "",
+    serialize: false,
+    computeSize(width) {
+      return [typeof width === "number" && width > 0 ? width : 200, slotHeight()];
+    },
+    draw() {},
+  };
+  if (!Array.isArray(node.widgets)) {
+    node.widgets = [];
+  }
+  node.widgets.push(spacer);
+  return spacer;
+}
+
+function ensureChanceWidget(node, index, savedValue) {
+  const name = chanceWidgetName(index);
+  const existing = (node.widgets ?? []).find((widget) => widget.name === name);
+  if (existing) {
+    return existing;
+  }
+  const value =
+    typeof savedValue === "string" && CHANCE_OPTIONS.includes(savedValue)
+      ? savedValue
+      : "Default";
+  return node.addWidget("combo", name, value, () => {}, {
+    values: CHANCE_OPTIONS,
+  });
+}
+
+function orderRoutingSwitchWidgets(node) {
+  const widgets = node.widgets ?? [];
+  const seed = widgets.filter((widget) => widget.name === "seed");
+  const rest = widgets.filter(
+    (widget) =>
+      widget.name !== "seed" &&
+      !isChanceWidget(widget) &&
+      !isSpacerWidget(widget),
+  );
+  const indices = new Set();
+  for (const widget of widgets) {
+    if (isChanceWidget(widget)) {
+      indices.add(Number.parseInt(widget.name.slice("chance_".length), 10));
+    }
+    if (isSpacerWidget(widget)) {
+      indices.add(Number.parseInt(widget.name.slice("__spacer_".length), 10));
+    }
+  }
+  const ordered = [];
+  for (const index of [...indices].sort((a, b) => a - b)) {
+    const spacer = widgets.find((widget) => widget.name === spacerWidgetName(index));
+    const chance = widgets.find((widget) => widget.name === chanceWidgetName(index));
+    if (spacer) {
+      ordered.push(spacer);
+    }
+    if (chance) {
+      ordered.push(chance);
+    }
+  }
+  node.widgets = [...seed, ...ordered, ...rest];
+}
+
+function layoutRoutingSwitchSlots(node) {
+  const title = titleHeight();
+  let y = title;
+  const seed = (node.widgets ?? []).find((widget) => widget.name === "seed");
+  if (seed) {
+    const size = seed.computeSize?.(node.size?.[0] ?? 240);
+    y += size?.[1] ?? widgetRowHeight();
+  }
+  for (const input of node.inputs ?? []) {
+    const index = routingInputIndex(input.name);
+    if (!Number.isInteger(index)) {
+      continue;
+    }
+    const row = slotHeight();
+    input.pos = [0, y + row * 0.5];
+    y += row;
+    if (input.link != null) {
+      y += widgetRowHeight();
+    }
+  }
+  const right = node.size?.[0] ?? 240;
+  if (node.outputs?.[0]) {
+    node.outputs[0].pos = [right, title + widgetRowHeight() * 0.5];
+  }
+  if (node.outputs?.[1]) {
+    node.outputs[1].pos = [
+      right,
+      title + widgetRowHeight() + slotHeight() * 0.5,
+    ];
+  }
+}
+
+function computeRoutingSwitchSize(node) {
+  const minWidth = 240;
+  let height = titleHeight() + 8;
+  const width = node.size?.[0] ?? minWidth;
+  for (const widget of node.widgets ?? []) {
+    if (widget.hidden) {
+      continue;
+    }
+    const size = widget.computeSize?.(width);
+    height += size?.[1] ?? widgetRowHeight();
+  }
+  return [Math.max(minWidth, width), height];
+}
+
+function applyRoutingSwitchWidgetValues(node, widgetsValues) {
+  if (!Array.isArray(widgetsValues) || widgetsValues.length === 0) {
+    return;
+  }
+  const seed = (node.widgets ?? []).find((widget) => widget.name === "seed");
+  if (seed) {
+    const first = widgetsValues[0];
+    if (typeof first === "number") {
+      seed.value = first;
+    } else if (Array.isArray(first) && typeof first[0] === "number") {
+      seed.value = first[0];
+    }
+  }
+  const chanceValues = widgetsValues.filter((value) =>
+    CHANCE_OPTIONS.includes(value),
+  );
+  const chances = (node.widgets ?? [])
+    .filter(isChanceWidget)
+    .sort(
+      (a, b) =>
+        Number.parseInt(a.name.slice("chance_".length), 10) -
+        Number.parseInt(b.name.slice("chance_".length), 10),
+    );
+  for (let i = 0; i < chances.length && i < chanceValues.length; i++) {
+    chances[i].value = chanceValues[i];
+  }
+}
+
+function syncRoutingSwitchChances(node) {
+  node.__dpeChanceSaved = node.__dpeChanceSaved || {};
+  for (const widget of node.widgets ?? []) {
+    if (isChanceWidget(widget)) {
+      node.__dpeChanceSaved[widget.name] = widget.value;
+    }
+  }
+
+  const wanted = new Set();
+  const connected = new Set();
+  for (const input of node.inputs ?? []) {
+    const index = routingInputIndex(input.name);
+    if (!Number.isInteger(index)) {
+      continue;
+    }
+    wanted.add(index);
+    if (input.link != null) {
+      connected.add(index);
+    }
+  }
+
+  for (const widget of [...(node.widgets ?? [])]) {
+    if (isChanceWidget(widget)) {
+      const index = Number.parseInt(widget.name.slice("chance_".length), 10);
+      if (!connected.has(index)) {
+        removeNodeWidget(node, widget);
+      }
+    } else if (isSpacerWidget(widget)) {
+      const index = Number.parseInt(widget.name.slice("__spacer_".length), 10);
+      if (!wanted.has(index)) {
+        removeNodeWidget(node, widget);
+      }
+    }
+  }
+
+  for (const index of [...wanted].sort((a, b) => a - b)) {
+    ensureSpacerWidget(node, index);
+    if (connected.has(index)) {
+      ensureChanceWidget(
+        node,
+        index,
+        node.__dpeChanceSaved[chanceWidgetName(index)],
+      );
+    }
+  }
+
+  orderRoutingSwitchWidgets(node);
+  node.widgets_start_y = titleHeight();
+  layoutRoutingSwitchSlots(node);
+}
+
+function registerRoutingSwitch(nodeType) {
+  registerDynamicStringNode(nodeType, routingSockets, {
+    afterLayout: (node) => {
+      const pending = node.__dpeRoutingWidgets;
+      syncRoutingSwitchChances(node);
+      if (pending) {
+        applyRoutingSwitchWidgetValues(node, pending);
+        delete node.__dpeRoutingWidgets;
+      }
+      const size = computeRoutingSwitchSize(node);
+      node.setSize([
+        Math.max(size[0], node.size?.[0] ?? 0),
+        Math.max(size[1], node.size?.[1] ?? 0),
+      ]);
+    },
+  });
+
+  nodeType.prototype.computeSize = function () {
+    return computeRoutingSwitchSize(this);
+  };
+
+  const originalConfigure = nodeType.prototype.onConfigure;
+  nodeType.prototype.onConfigure = function (info) {
+    if (Array.isArray(info?.widgets_values)) {
+      this.__dpeRoutingWidgets = [...info.widgets_values];
+    }
+    originalConfigure?.apply(this, arguments);
+  };
+}
+
 const ENGINE_NODE_NAMES = new Set([
   "SeededTextPool",
+  "RoutingSwitch",
   "BranchRandomSwitcher",
   "TagJoin",
   "BranchSelector",
@@ -597,6 +857,8 @@ app.registerExtension({
       registerDynamicStringNode(nodeType, branchSockets);
     } else if (nodeData.name === "BranchSelector") {
       registerDynamicStringNode(nodeType, inputSockets);
+    } else if (nodeData.name === "RoutingSwitch") {
+      registerRoutingSwitch(nodeType);
     }
 
     // After dynamic-socket wrappers so schema sync runs last on create/configure.

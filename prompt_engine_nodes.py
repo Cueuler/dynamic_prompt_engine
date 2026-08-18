@@ -18,6 +18,31 @@ class FlexibleOptionalInputType(dict):
         return True
 
 
+class RoutingSwitchOptionalInputs(dict):
+    """STRING sockets for input_N and combo widgets for chance_N."""
+
+    CHANCE_CHOICES = ["Default", "Off", "1.5x", "2x"]
+
+    def __init__(self, data=None):
+        super().__init__(data or {})
+        self.data = data or {}
+
+    def __getitem__(self, key):
+        if key in self.data:
+            return self.data[key]
+        if key.startswith("chance_") and key[len("chance_"):].isdigit():
+            return (
+                list(self.CHANCE_CHOICES),
+                {"default": "Default"},
+            )
+        if key.startswith("input_") and key[len("input_"):].isdigit():
+            return ("STRING", {"default": "", "forceInput": True})
+        return ("STRING", {"default": "", "forceInput": True})
+
+    def __contains__(self, key):
+        return True
+
+
 def resolve_unique_id(unique_id):
     """Normalize ComfyUI UNIQUE_ID (str/int or single-element list/tuple) to a string."""
     if unique_id is None:
@@ -41,16 +66,6 @@ def nonempty_text(value):
         return None
     text = str(value).strip()
     return text if text else None
-
-
-def validate_text_input(value, input_name, node_name):
-    """Validate that a text input is non‑empty; raise ValueError with a clear message."""
-    text = nonempty_text(value)
-    if text is None:
-        raise ValueError(
-            f"{node_name}: '{input_name}' is required and must be non‑empty."
-        )
-    return text
 
 
 def process_impact_wildcards(text, seed):
@@ -129,6 +144,42 @@ SEED_INPUT = (
         "display": "number",
     },
 )
+
+CHANCE_WEIGHTS = {
+    "Default": 2,
+    "1.5x": 3,
+    "2x": 4,
+}
+
+
+def numbered_input_indices(kwargs, prefix):
+    """Return sorted integer indices present in kwargs under prefix (uncapped)."""
+    indices = []
+    for key in kwargs:
+        if not key.startswith(prefix):
+            continue
+        suffix = key[len(prefix):]
+        if suffix.isdigit():
+            indices.append(int(suffix))
+    return sorted(indices)
+
+
+def normalize_chance_value(value):
+    """Coerce a chance widget/kwargs value to a label; missing/blank is Default."""
+    if value is None:
+        return "Default"
+    if isinstance(value, (list, tuple)):
+        value = value[0] if value else "Default"
+    text = str(value).strip()
+    return text if text else "Default"
+
+
+def chance_weight(value):
+    """Return integer lottery weight, or None when the slot is Off."""
+    label = normalize_chance_value(value)
+    if label == "Off":
+        return None
+    return CHANCE_WEIGHTS.get(label, CHANCE_WEIGHTS["Default"])
 
 
 class SeededTextPool:
@@ -212,6 +263,76 @@ class SeededTextPool:
         chosen_text = "" if lines[choice_index] == "[empty]" else lines[choice_index]
         chosen_text = process_impact_wildcards(chosen_text, derived_seed)
         return (chosen_text, master_seed)
+
+
+class RoutingSwitch:
+    """Seeded weighted pick among dynamic STRING inputs with per-slot chance combos."""
+
+    DESCRIPTION = (
+        "Picks one wired input_N string. Unconnected sockets, empty/whitespace "
+        "text, and chance Off are excluded from the lottery. Remaining slots "
+        "share the roll: Default is 1×, 1.5x is 50% more than Default, 2x is "
+        "twice Default. Same seed+node id is deterministic.\n"
+        "\n"
+        "Outputs the winning text (stripped, no extra commas) and the seed "
+        "unchanged so you can wire Impact Pack wildcards yourself.\n"
+        "\n"
+        "Examples: three Default clothes groups → one of them, equal chance. "
+        "input_0 Default and input_1 2x → input_1 wins about twice as often. "
+        "Only Off/empty left → empty text, seed still passed through."
+    )
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "seed": SEED_INPUT,
+            },
+            "optional": RoutingSwitchOptionalInputs(
+                {"input_0": ("STRING", {"default": "", "forceInput": True})},
+            ),
+            "hidden": {
+                "unique_id": "UNIQUE_ID",
+            },
+        }
+
+    RETURN_TYPES = ("STRING", "INT")
+    RETURN_NAMES = ("text", "seed")
+    FUNCTION = "route"
+    CATEGORY = "Dynamic Prompt Engine"
+
+    def route(self, seed=0, unique_id=None, **kwargs):
+        node_name = self.__class__.__name__
+
+        try:
+            master_seed = int(seed)
+        except (TypeError, ValueError):
+            raise ValueError(
+                f"{node_name}: 'seed' must be a valid integer, got {seed!r}."
+            )
+
+        eligible = []
+        for index in numbered_input_indices(kwargs, "input_"):
+            text = nonempty_text(kwargs.get(f"input_{index}"))
+            if text is None:
+                continue
+            weight = chance_weight(kwargs.get(f"chance_{index}"))
+            if weight is None:
+                continue
+            eligible.append((weight, text))
+
+        if not eligible:
+            return ("", master_seed)
+
+        derived_seed = derive_stream_seed(
+            master_seed, stream_key_from_unique_id(unique_id)
+        )
+        remaining = derived_seed % sum(weight for weight, _ in eligible)
+        for weight, text in eligible:
+            remaining -= weight
+            if remaining < 0:
+                return (text, master_seed)
+        return (eligible[-1][1], master_seed)
 
 
 class BranchSelector:

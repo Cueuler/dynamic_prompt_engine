@@ -1,6 +1,8 @@
 # Dynamic Prompt Engine
 
-ComfyUI custom nodes for modular, seed-reproducible prompt building. Editable multiline pools, a seeded random branch switcher with dynamic inputs, and an N-way branch selector.
+ComfyUI custom nodes for modular, seed-reproducible prompt building. Editable
+multiline pools, a weighted routing switch with dynamic inputs, a seeded random
+branch switcher, and an N-way branch selector.
 
 Clone directly into `ComfyUI/custom_nodes/` -- no symlinks or copying needed.
 
@@ -22,15 +24,27 @@ the generic selector; reproduce that behavior with the appropriate `Tag Join` no
 
 ```mermaid
 flowchart LR
-  rootPool["SeededTextPool seed_widget"] -->|"seed"| pools[OtherPools]
-  rootPool -->|"seed"| switcher[BranchRandomSwitcher]
-  pools --> joins[TagJoins]
-  switcher -->|"branch"| selector[BranchSelector]
+  seed[Seed]
+  rootPool["SeededTextPool"]
+  routing[RoutingSwitch]
+  impact[ImpactPack]
+  switcher[BranchRandomSwitcher]
+  selector[BranchSelector]
+  joins[TagJoins]
+  finalPrompt[OrderedPrompt]
+
+  seed --> rootPool
+  seed --> routing
+  seed --> switcher
+  rootPool --> joins
+  routing -->|"text + seed"| impact
+  impact --> joins
+  switcher -->|"branch"| selector
   selector --> joins
-  joins -->|"prompt"| finalPrompt[OrderedPrompt]
+  joins -->|"prompt"| finalPrompt
 ```
 
-**Seeded** nodes (**Seeded Text Pool**, **Branch Random Switcher**) accept `seed` for deterministic selection. **Branch Selector** and **Tag Join** do not use seed.
+**Seeded** nodes (**Seeded Text Pool**, **Routing Switch**, **Branch Random Switcher**) accept `seed` for deterministic selection. **Branch Selector** and **Tag Join** do not use seed.
 
 Empty or whitespace-only STRING inputs are skipped on join. Tag-like joins strip leading/trailing `,` and spaces from each part, then join with ", " and end with ", " when non-empty.
 
@@ -41,6 +55,7 @@ Category: **Dynamic Prompt Engine**
 | Node | Required inputs | Optional inputs | Outputs |
 |------|----------------|-----------------|---------|
 | **Seeded Text Pool** | `pool_text`, `bypass_chance`, `seed` | -- | `text`, `seed` |
+| **Routing Switch** | `seed` | dynamic `input_0`... plus `chance_N` combos | `text`, `seed` |
 | **Branch Random Switcher** | `seed` | `branch_0`...`branch_14` | `text`, `branch` |
 | **Branch Selector** | `branch` | `input_0`...`input_14` | `text` |
 | **Tag Join** | `text` preview | dynamic `tag_0`... | `prompt` |
@@ -60,6 +75,24 @@ Examples:
 - `alice\nbob\ncharlie` → one of those three, stable for the same seed+node.
 - `alice\n\n  \nbob` → only alice and bob are candidates.
 - Empty pool, or bypass gate even → `""`.
+
+### Routing Switch
+
+Seeded weighted pick among uncapped dynamic `input_0`... STRING sockets (Tag Join grow-by-one-spare). Each **connected** socket has a combo under it: **Default**, **Off**, **1.5x**, **2x** (Default is 1×). Unconnected spare sockets have no combo.
+
+A slot enters the lottery only if it is wired, the text is non-empty after strip, and the combo is not Off. Missing combo counts as Default. Integer weights: Default = 2, 1.5x = 3, 2x = 4. Pick is `hash(seed:node:{id}) % total_weight`.
+
+Outputs the winning string (stripped, no trailing comma) and the same `seed` so you can wire Impact Pack wildcards yourself.
+
+- Unconnected, empty/whitespace, and Off are excluded.
+- Zero eligible → `text=""`, seed still passed through.
+- Same seed + node id + wiring + combos → same winner.
+
+Examples:
+
+- Three Default clothes groups → one of them, equal chance.
+- `input_0` Default and `input_1` 2x → `input_1` wins about twice as often.
+- Only Off/empty left → empty text.
 
 ### Branch Random Switcher
 
@@ -126,9 +159,10 @@ Examples: 1024×1024 with `clip_scale=2` → scaled 2048×2048. Scaled sizes tru
 |---------|-----------|
 | Pool choice | `hash(seed:node:{id}) % n` |
 | Bypass chance gate | `hash(seed:node:{id}:gate) % 2` |
+| Routing switch | weighted pick among eligible `input_N` slots |
 | Branch random switch | seeded pick among connected branch indices |
 | Branch selector | direct index lookup (no seed) |
-| Seed chain | passthrough INT on Seeded Text Pool only |
+| Seed chain | passthrough INT on Seeded Text Pool and Routing Switch |
 
 ## Install
 

@@ -1,5 +1,6 @@
 from .prompt_engine_nodes import (
     SeededTextPool,
+    RoutingSwitch,
     BranchRandomSwitcher,
     BranchSelector,
     TagJoin,
@@ -12,6 +13,7 @@ except ImportError:
 
 NODE_CLASS_MAPPINGS = {
     "SeededTextPool": SeededTextPool,
+    "RoutingSwitch": RoutingSwitch,
     "BranchRandomSwitcher": BranchRandomSwitcher,
     "BranchSelector": BranchSelector,
     "TagJoin": TagJoin,
@@ -19,6 +21,7 @@ NODE_CLASS_MAPPINGS = {
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "SeededTextPool": "Seeded Text Pool",
+    "RoutingSwitch": "Routing Switch",
     "BranchRandomSwitcher": "Branch Random Switcher",
     "BranchSelector": "Branch Selector",
     "TagJoin": "Tag Join",
