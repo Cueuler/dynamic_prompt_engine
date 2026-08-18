@@ -64,7 +64,7 @@ Category: **Dynamic Prompt Engine**
 | Node | Required inputs | Optional inputs | Outputs |
 |------|----------------|-----------------|---------|
 | **Seeded Text Pool** | `pool_text`, `bypass_chance`, `seed` | -- | `text`, `seed` |
-| **Unique Line Picker** | `pool_text`, `seed` | -- | `text`, `seed` |
+| **Unique Line Picker** | `input`, `seed` | -- | `text`, `seed` |
 | **Routing Switch** | `seed` | dynamic `input_0`... plus `chance_N` combos | `text`, `seed` |
 | **Branch Random Switcher** | `seed` | `branch_0`...`branch_14` | `text`, `branch` |
 | **Branch Selector** | `branch` | `input_0`...`input_14` | `text` |
@@ -90,7 +90,7 @@ Examples:
 
 ### Unique Line Picker
 
-Picks one line from a wired or single-line `pool_text` STRING. Unlike **Seeded Text Pool**, there is no multiline widget, no bypass gate, and `{a|b}` / `__wildcard__` are not expanded. ComfyUI's per-node `unique_id` is mixed into the seed, then `np.random.default_rng(stream_seed).integers(0, n)` chooses the line (same PCG64 generator Impact uses). Two copies of this node with the same seed can still pick different lines. Outputs `text` and passes `seed` through unchanged.
+Picks one line from a **socket-only** `input` STRING (wire another STRING in; no text widget). Unlike **Seeded Text Pool**, there is no multiline box, no bypass gate, and `{a|b}` / `__wildcard__` are not expanded. ComfyUI's per-node `unique_id` is mixed into the seed, then `np.random.default_rng(stream_seed).integers(0, n)` chooses the line (same PCG64 generator Impact uses). Two copies of this node with the same seed can still pick different lines. Outputs `text` and passes `seed` through unchanged.
 
 - Candidates: split on newlines, strip, drop blank/whitespace lines.
 - Literal line `[empty]` is a candidate that emits `""`.

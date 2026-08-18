@@ -272,8 +272,8 @@ class UniqueLinePicker:
     """Picks one line from a STRING pool using NumPy PCG64 mixed with node id."""
 
     DESCRIPTION = (
-        "Unique Line Picker: picks one line from a STRING pool_text (single-line "
-        "widget or wired input, not a multiline box). Seed is mixed with "
+        "Unique Line Picker: picks one line from a wired STRING socket "
+        "(input). Seed is mixed with "
         "this node's id, then np.random.default_rng(stream_seed).integers(0, n) "
         "chooses the line (same PCG64 generator Impact uses). Two copies of "
         "this node with the same seed can still pick different lines. "
@@ -298,11 +298,11 @@ class UniqueLinePicker:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "pool_text": (
+                "input": (
                     "STRING",
                     {
                         "default": "",
-                        "dynamicPrompts": False,
+                        "forceInput": True,
                     },
                 ),
                 "seed": SEED_INPUT,
@@ -317,13 +317,13 @@ class UniqueLinePicker:
     FUNCTION = "pick_line"
     CATEGORY = "Dynamic Prompt Engine"
 
-    def pick_line(self, pool_text, seed=0, unique_id=None):
+    def pick_line(self, input, seed=0, unique_id=None):
         import numpy as np
 
         master_seed = int(seed)
         lines = [
             line.strip()
-            for line in str(pool_text or "").splitlines()
+            for line in str(input or "").splitlines()
             if line.strip()
         ]
         if not lines:

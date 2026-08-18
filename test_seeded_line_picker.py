@@ -46,9 +46,9 @@ def spec_pick(pool_text, seed, unique_id=None):
 
 
 class TestUniqueLinePickerInputTypes(unittest.TestCase):
-    def test_required_keys_are_only_pool_text_and_seed(self):
+    def test_required_keys_are_only_input_and_seed(self):
         required = UniqueLinePicker.INPUT_TYPES()["required"]
-        self.assertEqual(set(required.keys()), {"pool_text", "seed"})
+        self.assertEqual(set(required.keys()), {"input", "seed"})
 
     def test_bypass_chance_is_absent(self):
         schema = UniqueLinePicker.INPUT_TYPES()
@@ -60,11 +60,11 @@ class TestUniqueLinePickerInputTypes(unittest.TestCase):
         hidden = UniqueLinePicker.INPUT_TYPES().get("hidden", {})
         self.assertEqual(hidden.get("unique_id"), "UNIQUE_ID")
 
-    def test_pool_text_is_single_line_string(self):
-        pool = UniqueLinePicker.INPUT_TYPES()["required"]["pool_text"]
-        self.assertEqual(pool[0], "STRING")
-        self.assertFalse(pool[1].get("multiline"))
-        self.assertFalse(pool[1].get("dynamicPrompts"))
+    def test_input_is_socket_only(self):
+        socket = UniqueLinePicker.INPUT_TYPES()["required"]["input"]
+        self.assertEqual(socket[0], "STRING")
+        self.assertTrue(socket[1].get("forceInput"))
+        self.assertNotIn("multiline", socket[1])
 
     def test_return_types_and_names(self):
         self.assertEqual(UniqueLinePicker.RETURN_TYPES, ("STRING", "INT"))
