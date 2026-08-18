@@ -583,24 +583,14 @@ function slotOffset() {
   return slotHeight() * 0.5;
 }
 
-function outputLaneWidth() {
-  return 2 * slotHeight() + 40;
-}
-
-function widgetSlotY(widget, fallbackY) {
-  return typeof widget?.y === "number" ? widget.y + slotOffset() : fallbackY;
-}
-
 function layoutRoutingSwitchSlots(node) {
   const widgets = node.widgets ?? [];
   const byName = new Map(widgets.map((widget) => [widget.name, widget]));
   const offset = slotOffset();
   const width = node.size?.[0] ?? ROUTING_MIN_WIDTH;
-  const outputLane = outputLaneWidth();
-  const seedBlock = seedBlockWidgets(widgets);
 
-  for (const widget of seedBlock) {
-    widget.width = Math.max(0, width - outputLane);
+  for (const widget of seedBlockWidgets(widgets)) {
+    widget.width = width;
   }
   for (const widget of widgets) {
     if (isChanceWidget(widget)) {
@@ -620,19 +610,12 @@ function layoutRoutingSwitchSlots(node) {
     }
   }
 
-  const title = titleHeight();
-  const fallbackY = (row) => title + widgetRowHeight() * row + offset;
+  // Outputs stay at the top, matching ComfyUI's default vertical stack.
   if (node.outputs?.[0]) {
-    node.outputs[0].pos = [
-      width + 1 - offset,
-      widgetSlotY(seedBlock[0], fallbackY(0)),
-    ];
+    node.outputs[0].pos = [width + 1 - offset, (0 + 0.7) * slotHeight()];
   }
   if (node.outputs?.[1]) {
-    node.outputs[1].pos = [
-      width + 1 - offset,
-      widgetSlotY(seedBlock[1] ?? seedBlock[0], fallbackY(1)),
-    ];
+    node.outputs[1].pos = [width + 1 - offset, (1 + 0.7) * slotHeight()];
   }
 }
 
@@ -728,13 +711,13 @@ function syncRoutingSwitchChances(node) {
   ensureChanceGapWidget(node);
 
   orderRoutingSwitchWidgets(node);
-  node.widgets_start_y = titleHeight();
   layoutRoutingSwitchSlots(node);
 }
 
 function registerRoutingSwitch(nodeType) {
-  // Layout: spacer rows for every input_N, a gap, chance combos named like
-  // their inputs, then seed + Control after generate. Outputs follow the seed block.
+  // Layout: input sockets under the title, a gap, chance combos named like
+  // their inputs, then seed + Control after generate at the bottom.
+  // text/seed outputs stay at the top.
   registerDynamicStringNode(nodeType, routingSockets, {
     afterLayout: (node) => {
       const pending = node.__dpeRoutingWidgets;
@@ -757,6 +740,9 @@ function registerRoutingSwitch(nodeType) {
 
   const originalArrange = nodeType.prototype.arrange;
   nodeType.prototype.arrange = function () {
+    // Pin widgets under the title so input spacers are not pushed below the
+    // measured slot box (outputs stay at the top; inputs follow spacers).
+    this.widgets_start_y = titleHeight();
     const result = originalArrange?.apply(this, arguments);
     layoutRoutingSwitchSlots(this);
     return result;
