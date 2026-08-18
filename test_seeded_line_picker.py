@@ -60,10 +60,10 @@ class TestUniqueLinePickerInputTypes(unittest.TestCase):
         hidden = UniqueLinePicker.INPUT_TYPES().get("hidden", {})
         self.assertEqual(hidden.get("unique_id"), "UNIQUE_ID")
 
-    def test_pool_text_is_multiline_without_dynamic_prompts(self):
+    def test_pool_text_is_single_line_string(self):
         pool = UniqueLinePicker.INPUT_TYPES()["required"]["pool_text"]
         self.assertEqual(pool[0], "STRING")
-        self.assertTrue(pool[1].get("multiline"))
+        self.assertFalse(pool[1].get("multiline"))
         self.assertFalse(pool[1].get("dynamicPrompts"))
 
     def test_return_types_and_names(self):

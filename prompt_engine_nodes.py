@@ -269,10 +269,11 @@ class SeededTextPool:
 
 
 class UniqueLinePicker:
-    """Picks one line from a multiline pool using NumPy PCG64 mixed with node id."""
+    """Picks one line from a STRING pool using NumPy PCG64 mixed with node id."""
 
     DESCRIPTION = (
-        "Unique Line Picker: picks one line from pool_text. Seed is mixed with "
+        "Unique Line Picker: picks one line from a STRING pool_text (single-line "
+        "widget or wired input, not a multiline box). Seed is mixed with "
         "this node's id, then np.random.default_rng(stream_seed).integers(0, n) "
         "chooses the line (same PCG64 generator Impact uses). Two copies of "
         "this node with the same seed can still pick different lines. "
@@ -301,9 +302,7 @@ class UniqueLinePicker:
                     "STRING",
                     {
                         "default": "",
-                        "multiline": True,
                         "dynamicPrompts": False,
-                        "placeholder": "Enter candidates, one per line...",
                     },
                 ),
                 "seed": SEED_INPUT,

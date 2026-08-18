@@ -90,7 +90,7 @@ Examples:
 
 ### Unique Line Picker
 
-Picks one line from `pool_text`. Unlike **Seeded Text Pool**, there is no bypass gate and `{a|b}` / `__wildcard__` are not expanded. ComfyUI's per-node `unique_id` is mixed into the seed, then `np.random.default_rng(stream_seed).integers(0, n)` chooses the line (same PCG64 generator Impact uses). Two copies of this node with the same seed can still pick different lines. Outputs `text` and passes `seed` through unchanged.
+Picks one line from a wired or single-line `pool_text` STRING. Unlike **Seeded Text Pool**, there is no multiline widget, no bypass gate, and `{a|b}` / `__wildcard__` are not expanded. ComfyUI's per-node `unique_id` is mixed into the seed, then `np.random.default_rng(stream_seed).integers(0, n)` chooses the line (same PCG64 generator Impact uses). Two copies of this node with the same seed can still pick different lines. Outputs `text` and passes `seed` through unchanged.
 
 - Candidates: split on newlines, strip, drop blank/whitespace lines.
 - Literal line `[empty]` is a candidate that emits `""`.
