@@ -1,6 +1,4 @@
 import hashlib
-import sys
-from pathlib import Path
 
 
 class FlexibleOptionalInputType(dict):
@@ -74,22 +72,18 @@ def process_impact_wildcards(text, seed):
         return text
 
     try:
-        from impact import wildcards
-    except ImportError:
-        impact_modules = (
-            Path(__file__).resolve().parents[1]
-            / "comfyui-impact-pack"
-            / "modules"
-        )
-        if impact_modules.is_dir():
-            sys.path.insert(0, str(impact_modules))
-            from impact import wildcards
-        else:
-            raise RuntimeError(
-                "Wildcard syntax requires ComfyUI-Impact-Pack."
-            )
+        from .impact_loader import ensure_impact_wildcards
 
-    return wildcards.process(text, seed)
+        process = ensure_impact_wildcards()
+    except ImportError:
+        raise RuntimeError(
+            "Wildcard syntax requires ComfyUI-Impact-Pack. "
+            "In ComfyUI, install it as a sibling custom node. "
+            "For local tests: pip install -r dev-requirements.txt && "
+            "PYTHONPATH=. python -m dynamic_prompt_engine.setup_dev"
+        ) from None
+
+    return process(text, seed)
 
 
 def derive_stream_seed(master_seed, stream_key, suffix=""):
@@ -132,6 +126,37 @@ def connected_input_indices(kwargs, prefix, max_count):
         if 0 <= index < max_count:
             indices.append(index)
     return sorted(indices)
+
+
+def pick_unique_line(pool_text, bypass_chance=False, seed=0, unique_id=None):
+    """PCG64 line pick and 50% gate used by Unique Line Picker and Seeded Text Pool.
+
+    Returns (text, master_seed, gated). gated is True when the 50% gate skipped
+    the pick (Impact expand must not run).
+    """
+    import numpy as np
+
+    master_seed = int(seed)
+    stream_key = stream_key_from_unique_id(unique_id)
+    lines = [
+        line.strip()
+        for line in str(pool_text or "").splitlines()
+        if line.strip()
+    ]
+
+    if bypass_chance:
+        gate_seed = derive_stream_seed(master_seed, stream_key, "gate")
+        if int(np.random.default_rng(gate_seed).integers(0, 2)) == 0:
+            return ("", master_seed, True)
+
+    if not lines:
+        return ("", master_seed, False)
+
+    stream_seed = derive_stream_seed(master_seed, stream_key)
+    index = int(np.random.default_rng(stream_seed).integers(0, len(lines)))
+    chosen = lines[index]
+    text = "" if chosen == "[empty]" else chosen
+    return (text, master_seed, False)
 
 
 SEED_INPUT = (
@@ -186,18 +211,21 @@ class SeededTextPool:
     """Selects a deterministic text candidate from a multiline library based on seed + node id."""
 
     DESCRIPTION = (
-        "Seeded Text Pool: picks one line from pool_text. Choice is "
-        "hash(seed:node:{id}) % n, so two copies of this node with the same "
-        "seed can still pick different lines. Outputs: text, and seed unchanged.\n"
+        "Seeded Text Pool: picks one line from pool_text using the same PCG64 "
+        "integers() as Unique Line Picker, then expands Impact Pack {a|b} / "
+        "__wildcard__ on the chosen line using Unique Wildcard Processor's "
+        "mixed seed. Outputs: text, and seed unchanged.\n"
         "\n"
-        "Unlike Unique Line Picker: Impact Pack {a|b} / __wildcard__ run on "
-        "the chosen line, and bypass uses hash % 2 instead of PCG64 integers().\n"
+        "Unlike Unique Line Picker: this node has a multiline pool_text widget, "
+        "and {a|b} / __wildcard__ run on the chosen line.\n"
         "\n"
         "Candidates: split on newlines, strip each line, drop blank/whitespace "
         "lines. Only remaining lines are in the pool.\n"
         "\n"
-        "Bypass chance Off: never gates. 50%: hash(seed:node:{id}:gate) % 2 == 0 "
-        "returns empty text (this check runs even if the pool is empty).\n"
+        "Bypass chance Off: never gates. 50%: "
+        "default_rng(hash(seed:node:{id}:gate)).integers(0, 2) == 0 returns "
+        "empty text (this check runs even if the pool is empty; Impact expand "
+        "is skipped when gated).\n"
         "\n"
         "Examples: pool 'alice\\nbob\\ncharlie' → one of those three, stable for "
         "the same seed+node. 'alice\\n\\n  \\nbob' → only alice and bob. Chosen "
@@ -245,27 +273,15 @@ class SeededTextPool:
     def select_from_pool(
         self, pool_text, bypass_chance=False, seed=0, unique_id=None
     ):
-        master_seed = int(seed)
-        stream_key = stream_key_from_unique_id(unique_id)
-        lines = [
-            line.strip()
-            for line in str(pool_text or "").splitlines()
-            if line.strip()
-        ]
-
-        if bypass_chance:
-            gate_seed = derive_stream_seed(master_seed, stream_key, "gate")
-            if gate_seed % 2 == 0:
-                return ("", master_seed)
-
-        if not lines:
+        text, master_seed, gated = pick_unique_line(
+            pool_text, bypass_chance=bypass_chance, seed=seed, unique_id=unique_id
+        )
+        if gated:
             return ("", master_seed)
-
-        derived_seed = derive_stream_seed(master_seed, stream_key)
-        choice_index = derived_seed % len(lines)
-        chosen_text = "" if lines[choice_index] == "[empty]" else lines[choice_index]
-        chosen_text = process_impact_wildcards(chosen_text, derived_seed)
-        return (chosen_text, master_seed)
+        stream_seed = derive_stream_seed(
+            master_seed, stream_key_from_unique_id(unique_id)
+        )
+        return (process_impact_wildcards(text, stream_seed), master_seed)
 
 
 class UniqueLinePicker:
@@ -279,7 +295,8 @@ class UniqueLinePicker:
         "this node with the same seed can still pick different lines. "
         "Outputs: text, and seed unchanged.\n"
         "\n"
-        "Unlike Seeded Text Pool: {a|b} / __wildcard__ are not expanded.\n"
+        "Unlike Seeded Text Pool: there is no multiline widget, and "
+        "{a|b} / __wildcard__ are not expanded.\n"
         "\n"
         "Candidates: split on newlines, strip each line, drop blank/whitespace "
         "lines. Only remaining lines are in the pool.\n"
@@ -329,28 +346,9 @@ class UniqueLinePicker:
     CATEGORY = "Dynamic Prompt Engine"
 
     def pick_line(self, input, bypass_chance=False, seed=0, unique_id=None):
-        import numpy as np
-
-        master_seed = int(seed)
-        stream_key = stream_key_from_unique_id(unique_id)
-        lines = [
-            line.strip()
-            for line in str(input or "").splitlines()
-            if line.strip()
-        ]
-
-        if bypass_chance:
-            gate_seed = derive_stream_seed(master_seed, stream_key, "gate")
-            if int(np.random.default_rng(gate_seed).integers(0, 2)) == 0:
-                return ("", master_seed)
-
-        if not lines:
-            return ("", master_seed)
-
-        stream_seed = derive_stream_seed(master_seed, stream_key)
-        index = int(np.random.default_rng(stream_seed).integers(0, len(lines)))
-        chosen = lines[index]
-        text = "" if chosen == "[empty]" else chosen
+        text, master_seed, _gated = pick_unique_line(
+            input, bypass_chance=bypass_chance, seed=seed, unique_id=unique_id
+        )
         return (text, master_seed)
 
 

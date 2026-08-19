@@ -1,0 +1,9 @@
+# Development / unit tests (not needed to run the nodes inside ComfyUI).
+numpy
+PyYAML
+
+# Wildcard oracle tests call Impact Pack's wildcards.process. They do not need ComfyUI.
+# Clone a pinned commit into .dev/ComfyUI-Impact-Pack (gitignored):
+#   PYTHONPATH=. python -m dynamic_prompt_engine.setup_dev
+# (run from the directory that contains the dynamic_prompt_engine folder)
+# Override the fixture path with IMPACT_PACK_ROOT if you already have that commit.

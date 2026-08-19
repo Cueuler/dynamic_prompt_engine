@@ -11,7 +11,27 @@ import unittest
 
 import numpy as np
 
-from dynamic_prompt_engine.prompt_engine_nodes import UniqueLinePicker
+from dynamic_prompt_engine.prompt_engine_nodes import SeededTextPool, UniqueLinePicker
+
+
+class _LinePickerTestBase(unittest.TestCase):
+    """Override picker_factory in subclasses to test another pick_line implementation."""
+
+    @staticmethod
+    def picker_factory():
+        return UniqueLinePicker()
+
+    def setUp(self):
+        self.node = self.picker_factory()
+
+
+class SeededTextPoolAsLinePicker:
+    """Adapter so Seeded Text Pool runs Unique Line Picker behavioral tests."""
+
+    def pick_line(self, input, bypass_chance=False, seed=0, unique_id=None):
+        return SeededTextPool().select_from_pool(
+            input, bypass_chance=bypass_chance, seed=seed, unique_id=unique_id
+        )
 
 
 def _candidates(pool_text):
@@ -80,9 +100,7 @@ class TestUniqueLinePickerInputTypes(unittest.TestCase):
         self.assertEqual(UniqueLinePicker.RETURN_NAMES, ("text", "seed"))
 
 
-class TestUniqueLinePickerEmptyPool(unittest.TestCase):
-    def setUp(self):
-        self.node = UniqueLinePicker()
+class TestUniqueLinePickerEmptyPool(_LinePickerTestBase):
 
     def test_empty_string_returns_empty_text_and_passthrough_seed(self):
         self.assertEqual(self.node.pick_line("", seed=42), ("", 42))
@@ -97,9 +115,7 @@ class TestUniqueLinePickerEmptyPool(unittest.TestCase):
         self.assertEqual(self.node.pick_line("\n\n\n", seed=9), ("", 9))
 
 
-class TestUniqueLinePickerCandidates(unittest.TestCase):
-    def setUp(self):
-        self.node = UniqueLinePicker()
+class TestUniqueLinePickerCandidates(_LinePickerTestBase):
 
     def test_blank_lines_are_dropped_and_lines_are_stripped(self):
         pool = "  alice  \n\n  \nbob\n"
@@ -140,9 +156,7 @@ class TestUniqueLinePickerCandidates(unittest.TestCase):
         self.assertEqual(seen_indexes, {0, 1, 2})
 
 
-class TestUniqueLinePickerEmptyLiteral(unittest.TestCase):
-    def setUp(self):
-        self.node = UniqueLinePicker()
+class TestUniqueLinePickerEmptyLiteral(_LinePickerTestBase):
 
     def test_only_empty_literal_emits_blank(self):
         text, seed = self.node.pick_line("[empty]", seed=5, unique_id="1")
@@ -174,9 +188,9 @@ class TestUniqueLinePickerEmptyLiteral(unittest.TestCase):
         self.assertTrue(found_other, "expected some seed to pick a real line")
 
 
-class TestUniqueLinePickerDeterminism(unittest.TestCase):
+class TestUniqueLinePickerDeterminism(_LinePickerTestBase):
     def setUp(self):
-        self.node = UniqueLinePicker()
+        super().setUp()
         self.pool = "alice\nbob\ncharlie"
 
     def test_same_seed_and_unique_id_is_deterministic(self):
@@ -286,9 +300,9 @@ class TestUniqueLinePickerNoWildcardExpansion(unittest.TestCase):
             self.assertIn(text, ("{a|b}", "plain"))
 
 
-class TestUniqueLinePickerBypassChance(unittest.TestCase):
+class TestUniqueLinePickerBypassChance(_LinePickerTestBase):
     def setUp(self):
-        self.node = UniqueLinePicker()
+        super().setUp()
         self.pool = "alice\nbob\ncharlie"
 
     def test_off_never_gates(self):
@@ -356,9 +370,9 @@ class TestUniqueLinePickerBypassChance(unittest.TestCase):
         self.assertEqual(before, after)
 
 
-class TestUniqueLinePickerSpread(unittest.TestCase):
+class TestUniqueLinePickerSpread(_LinePickerTestBase):
     def test_three_thousand_seeds_hit_every_line_hundreds_of_times(self):
-        node = UniqueLinePicker()
+        node = self.picker_factory()
         pool = "alice\nbob\ncharlie"
         counts = {"alice": 0, "bob": 0, "charlie": 0}
         for seed in range(3000):
@@ -370,6 +384,56 @@ class TestUniqueLinePickerSpread(unittest.TestCase):
                 300,
                 f"{name} only picked {count} times in 3000 seeds",
             )
+
+
+class TestSeededTextPoolInputTypes(unittest.TestCase):
+    def test_required_keys_are_pool_bypass_and_seed(self):
+        required = SeededTextPool.INPUT_TYPES()["required"]
+        self.assertEqual(set(required.keys()), {"pool_text", "bypass_chance", "seed"})
+
+    def test_pool_text_is_multiline(self):
+        widget = SeededTextPool.INPUT_TYPES()["required"]["pool_text"]
+        self.assertEqual(widget[0], "STRING")
+        self.assertTrue(widget[1].get("multiline"))
+
+    def test_bypass_chance_widget_matches_unique_line_picker(self):
+        pool = SeededTextPool.INPUT_TYPES()["required"]["bypass_chance"]
+        picker = UniqueLinePicker.INPUT_TYPES()["required"]["bypass_chance"]
+        self.assertEqual(pool, picker)
+
+    def test_return_types_and_names(self):
+        self.assertEqual(SeededTextPool.RETURN_TYPES, ("STRING", "INT"))
+        self.assertEqual(SeededTextPool.RETURN_NAMES, ("text", "seed"))
+
+
+class TestSeededTextPoolInheritsLinePicker:
+    @staticmethod
+    def picker_factory():
+        return SeededTextPoolAsLinePicker()
+
+
+class TestSeededTextPoolEmptyPool(TestSeededTextPoolInheritsLinePicker, TestUniqueLinePickerEmptyPool):
+    pass
+
+
+class TestSeededTextPoolCandidates(TestSeededTextPoolInheritsLinePicker, TestUniqueLinePickerCandidates):
+    pass
+
+
+class TestSeededTextPoolEmptyLiteral(TestSeededTextPoolInheritsLinePicker, TestUniqueLinePickerEmptyLiteral):
+    pass
+
+
+class TestSeededTextPoolDeterminism(TestSeededTextPoolInheritsLinePicker, TestUniqueLinePickerDeterminism):
+    pass
+
+
+class TestSeededTextPoolBypassChance(TestSeededTextPoolInheritsLinePicker, TestUniqueLinePickerBypassChance):
+    pass
+
+
+class TestSeededTextPoolSpread(TestSeededTextPoolInheritsLinePicker, TestUniqueLinePickerSpread):
+    pass
 
 
 if __name__ == "__main__":

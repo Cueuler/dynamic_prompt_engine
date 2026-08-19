@@ -1,2 +1,7 @@
-# No Python package dependencies; this custom node uses the standard library.
-# ComfyUI and the optional ComfyUI-Impact-Pack are installed separately.
+# No pip packages to run the nodes inside ComfyUI.
+#
+# Peer dependency (install as a sibling under ComfyUI/custom_nodes/):
+#   ComfyUI-Impact-Pack — required when expanding `{a|b}` / `__wildcard__`.
+# This pack does not vendor Impact sources and does not clone Impact at runtime.
+#
+# Unit tests without ComfyUI: see `dev-requirements.txt` and `setup_dev.py`.

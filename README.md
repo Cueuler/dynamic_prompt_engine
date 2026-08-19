@@ -75,10 +75,10 @@ Category: **Dynamic Prompt Engine**
 
 ### Seeded Text Pool
 
-Picks one line from `pool_text`. Choice is `hash(seed:node:{id}) % n`, so two copies of this node with the same seed can still pick different lines. Unlike **Unique Line Picker**, this node expands Impact `{a|b}` / `__wildcard__` on the chosen line, and its bypass gate is `hash % 2` rather than PCG64. Outputs `text` and passes `seed` through unchanged.
+Picks one line from `pool_text` using the same PCG64 `integers(0, n)` as **Unique Line Picker**, then expands Impact `{a|b}` / `__wildcard__` on the chosen line using the same mixed seed as **Unique Wildcard Processor**. Outputs `text` and passes `seed` through unchanged.
 
 - Candidates: split on newlines, strip, drop blank/whitespace lines.
-- `bypass_chance` **Off**: never gates. **50%**: `hash(seed:node:{id}:gate) % 2 == 0` returns empty text (runs even if the pool is empty).
+- `bypass_chance` **Off**: never gates. **50%**: `default_rng(hash(seed:node:{id}:gate)).integers(0, 2) == 0` returns empty text (same PCG64 `integers()` as Unique Line Picker; runs even if the pool is empty; Impact expand is skipped when gated).
 - Literal line `[empty]` is a candidate that emits `""`.
 - Impact Pack `{a|b}` / `__wildcard__` runs only on the chosen line and requires ComfyUI-Impact-Pack.
 
@@ -86,7 +86,7 @@ Examples:
 
 - `alice\nbob\ncharlie` → one of those three, stable for the same seed+node.
 - `alice\n\n  \nbob` → only alice and bob are candidates.
-- Empty pool, or bypass gate even → `""`.
+- Empty pool, or bypass gate 0 → `""`.
 
 ### Unique Line Picker
 
@@ -181,7 +181,7 @@ A selector marker like `branch 2 skipped` is non-empty, so it is included in the
 
 Expands Impact Pack `{a|b}` / `__wildcard__` syntax in `populated_text` and outputs `processed text`. Unlike **Unique Line Picker**, this node does expand Impact syntax. Always expands at execute (populate behavior). Type in the multiline widget or convert/wire another STRING into it; the widget is not overwritten.
 
-- Requires **ComfyUI-Impact-Pack** when the text contains `{` or `__` (raises if missing).
+- Requires **ComfyUI-Impact-Pack** installed as a sibling custom node when the text contains `{` or `__` (raises if missing). This pack does not bundle or clone Impact at generate time.
 - Plain text with neither is returned unchanged.
 - ComfyUI's per-node `unique_id` is mixed into the seed, then Impact `process(populated_text, stream_seed)` expands. Two copies of this node with the same seed can still expand differently. Same seed + same node stays deterministic.
 
@@ -227,10 +227,9 @@ Examples: 1024×1024 with `clip_scale=2` → scaled 2048×2048. Scaled sizes tru
 
 | Feature | Mechanism |
 |---------|-----------|
-| Pool choice | `hash(seed:node:{id}) % n` |
-| Unique Line Picker | PCG64 `integers(0, n)` seeded from `hash(seed:node:{id})` |
-| Bypass chance gate (Seeded Text Pool) | `hash(seed:node:{id}:gate) % 2` |
-| Bypass chance gate (Unique Line Picker) | PCG64 `integers(0, 2)` seeded from `hash(seed:node:{id}:gate)` |
+| Seeded Text Pool / Unique Line Picker pick | PCG64 `integers(0, n)` seeded from `hash(seed:node:{id})` |
+| Bypass chance gate (both) | PCG64 `integers(0, 2)` seeded from `hash(seed:node:{id}:gate)` |
+| Seeded Text Pool expand | Unique Wildcard Processor: Impact `process(chosen_line, stream_seed)` |
 | Routing switch | weighted pick among eligible `input_N` slots |
 | Branch random switch | seeded pick among connected branch indices |
 | Branch selector | direct index lookup (no seed) |
@@ -245,3 +244,17 @@ git clone https://github.com/Cueuler/dynamic_prompt_engine.git
 ```
 
 Restart ComfyUI.
+
+**Peer dependency:** Unique Wildcard Processor and Seeded Text Pool expansion use [ComfyUI-Impact-Pack](https://github.com/ltdrdata/ComfyUI-Impact-Pack) from `custom_nodes/` (same folder as this pack). Install Impact there as you would any other custom node. Runtime never clones Impact and never uses a local `.dev` copy.
+
+## Development (tests without ComfyUI)
+
+Wildcard oracle tests call Impact Pack's `wildcards.process`. They do not need a ComfyUI install. `setup_dev.py` clones a **pinned commit** into `.dev/ComfyUI-Impact-Pack` (gitignored) so results stay stable. Set `IMPACT_PACK_ROOT` to an existing checkout of that same commit if you already have one.
+
+```bash
+# from the directory that contains the dynamic_prompt_engine folder
+pip install -r dynamic_prompt_engine/dev-requirements.txt
+PYTHONPATH=. python -m dynamic_prompt_engine.setup_dev
+PYTHONPATH=. python -m unittest dynamic_prompt_engine.test_wildcard_processor
+```
+
