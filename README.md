@@ -193,7 +193,9 @@ Examples:
 
 ### CLIP Token Report
 
-Inspect-only node: tokenizes the prompt with ComfyUI's connected CLIP via `clip.tokenize(text)` and shows how the encoder splits it into fixed windows. Does **not** output conditioning — keep using stock **CLIPTextEncode** for that. Wire the **same CLIP** and **same prompt** you encode with.
+Inspect-only node: tokenizes the prompt with the connected CLIP model and reports how it splits into fixed windows. Does **not** output conditioning — keep using your encode node (stock **CLIPTextEncode** or ADV CLIP) for that. Wire the **same CLIP** and **same prompt** you encode with.
+
+**BREAK:** A1111-style word-boundary `BREAK` starts a new 77-token window. The report splits on that keyword and calls `clip.tokenize()` per segment, matching how A1111 / ComfyUI-A1111-cond isolate chunks. Stock `clip.tokenize()` (and BlenderNeko ADV CLIP, which tokenize the full string) would otherwise treat `BREAK` as a normal word. Lowercase `break` is not a keyword.
 
 **Layout:** `text` is a socket input (wire from Tag Join or upstream). The multiline **report** widget on the node is a read-only preview filled after queue/run, matching the Tag Join pattern.
 
@@ -201,7 +203,7 @@ For SDXL / Illustrious XL, CLIP-L and CLIP-G each use a **77-token window**: 1 B
 
 - **On-node preview**: multiline `report` widget (filled after queue/run).
 - **STRING output**: same formatted report for Show Text or downstream nodes.
-- **Overflow**: `overflow: yes` when total content tokens exceed 75 (multiple chunks).
+- **Overflow**: `overflow: yes` when total content tokens exceed 75. `BREAK` can create extra chunks without overflow if each segment fits in 75.
 - **Textual inversions**: non-integer token slots appear as `[embedding]` in reconstructed text.
 
 Example report excerpt:

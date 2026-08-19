@@ -1,6 +1,12 @@
 """CLIP token chunk inspection for ComfyUI SDXL / SD1.5 encoders."""
 
+import re
+
 CLIP_WINDOW_THRESHOLD = 256
+
+# A1111 keyword: force a new 77-token CLIP window. Not implemented by stock
+# clip.tokenize() or BlenderNeko ADV CLIP (those tokenize the whole string).
+BREAK_SPLIT = re.compile(r"\s*\bBREAK\b\s*")
 
 ENCODER_LABELS = {
     "l": "CLIP-L",
@@ -18,6 +24,33 @@ CLIP_INVALID_MESSAGE = (
 
 def encoder_label(name):
     return ENCODER_LABELS.get(name, name)
+
+
+def break_segments(text):
+    """Split a prompt on A1111 BREAK into independently tokenized segments."""
+    parts = BREAK_SPLIT.split("" if text is None else str(text))
+    return [part.strip() for part in parts if part.strip()]
+
+
+def merge_token_dicts(left, right):
+    """Concatenate per-encoder chunk lists (each BREAK segment is extra windows)."""
+    if left is None:
+        return {key: list(chunks) for key, chunks in right.items()}
+    merged = {key: list(chunks) for key, chunks in left.items()}
+    for key, chunks in right.items():
+        merged[key] = merged.get(key, []) + list(chunks)
+    return merged
+
+
+def tokenize_prompt(clip, text):
+    """Tokenize like A1111 BREAK: each segment is its own clip.tokenize() call."""
+    segments = break_segments(text)
+    if not segments:
+        return clip.tokenize("")
+    merged = None
+    for segment in segments:
+        merged = merge_token_dicts(merged, clip.tokenize(segment))
+    return merged
 
 
 def encoder_tokenizer(root_tokenizer, name):
@@ -248,7 +281,10 @@ class CLIPTokenReport:
         "for SDXL CLIP-L/G). Inspect-only: does not output conditioning.\n"
         "\n"
         "Wire prompt text from upstream nodes (socket input). Chunk text lines use "
-        "tokenizer.decode() on each chunk's content token ids."
+        "tokenizer.decode() on each chunk's content token ids.\n"
+        "\n"
+        "A1111 BREAK (word-boundary BREAK) starts a new CLIP window: each segment is "
+        "tokenized separately so BREAK is not counted as a content token."
     )
 
     @classmethod
@@ -286,7 +322,7 @@ class CLIPTokenReport:
         if clip is None:
             raise RuntimeError(CLIP_INVALID_MESSAGE)
 
-        tokens = clip.tokenize(text)
+        tokens = tokenize_prompt(clip, text)
         report_text = format_clip_token_report(tokens, clip.tokenizer)
 
         return {

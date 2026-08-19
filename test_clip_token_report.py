@@ -6,12 +6,15 @@ from unittest.mock import MagicMock
 from dynamic_prompt_engine.clip_token_report import (
     CLIPTokenReport,
     CLIP_INVALID_MESSAGE,
+    break_segments,
     content_from_chunk,
     content_signature,
     content_token_count,
     encoder_tokenizer,
     format_clip_token_report,
+    merge_token_dicts,
     reconstruct_content,
+    tokenize_prompt,
 )
 
 
@@ -191,6 +194,56 @@ class TestEncoderTokenizer(unittest.TestCase):
         root = MagicMock()
         root.clip_l = FakeClipTokenizer()
         self.assertIs(encoder_tokenizer(root, "l"), root.clip_l)
+
+
+class TestBreakKeyword(unittest.TestCase):
+    def test_split_on_word_boundary_break(self):
+        self.assertEqual(break_segments("dog, cat BREAK bird"), ["dog, cat", "bird"])
+
+    def test_lowercase_break_is_not_a_keyword(self):
+        self.assertEqual(break_segments("please break the line"), ["please break the line"])
+
+    def test_skips_empty_segments(self):
+        self.assertEqual(break_segments("  BREAK  hello  BREAK  "), ["hello"])
+
+    def test_merge_appends_encoder_chunks(self):
+        left = {"l": [make_chunk([100], pad_count=74)]}
+        right = {"l": [make_chunk([101], pad_count=74)]}
+        merged = merge_token_dicts(left, right)
+        self.assertEqual(len(merged["l"]), 2)
+        self.assertEqual(merged["l"][0][1][0], 100)
+        self.assertEqual(merged["l"][1][1][0], 101)
+
+    def test_tokenize_prompt_splits_then_tokenizes_each_segment(self):
+        clip = MagicMock()
+        clip.tokenize.side_effect = [
+            {"l": [make_chunk([100], pad_count=74)]},
+            {"l": [make_chunk([101], pad_count=74)]},
+        ]
+        tokens = tokenize_prompt(clip, "hello BREAK world")
+        self.assertEqual(
+            [call.args[0] for call in clip.tokenize.call_args_list],
+            ["hello", "world"],
+        )
+        self.assertEqual(len(tokens["l"]), 2)
+
+    def test_inspect_tokenizes_break_segments_separately(self):
+        clip = MagicMock()
+        clip.tokenizer = FakeClipTokenizer()
+        clip.tokenize.side_effect = [
+            {"l": [make_chunk([100], pad_count=74)]},
+            {"l": [make_chunk([101], pad_count=74)]},
+        ]
+        result = CLIPTokenReport().inspect(clip, "hello BREAK world", report="")
+        self.assertEqual(
+            [call.args[0] for call in clip.tokenize.call_args_list],
+            ["hello", "world"],
+        )
+        report = result["result"][0]
+        self.assertIn("chunks: 2    content tokens: 2    overflow: no", report)
+        self.assertIn("[chunk 1/2]  1/75", report)
+        self.assertIn("[chunk 2/2]  1/75", report)
+        self.assertNotIn("BREAK", report)
 
 
 class TestCLIPTokenReportNode(unittest.TestCase):
