@@ -8,6 +8,7 @@ from .prompt_engine_nodes import (
 )
 from .clip_token_report import CLIPTokenReport
 from .wildcard_processor import UniqueWildcardProcessor
+from .global_seed import DPEGlobalSeed, register_global_seed_handler
 
 try:
     from .resolution_node import ResolutionSwitch
@@ -23,6 +24,7 @@ NODE_CLASS_MAPPINGS = {
     "TagJoin": TagJoin,
     "CLIPTokenReport": CLIPTokenReport,
     "UniqueWildcardProcessor": UniqueWildcardProcessor,
+    "DPEGlobalSeed": DPEGlobalSeed,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -34,6 +36,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "TagJoin": "Tag Join",
     "CLIPTokenReport": "CLIP Token Report",
     "UniqueWildcardProcessor": "Unique Wildcard Processor",
+    "DPEGlobalSeed": "DPE Global Seed",
 }
 
 if ResolutionSwitch is not None:
@@ -41,6 +44,8 @@ if ResolutionSwitch is not None:
     NODE_DISPLAY_NAME_MAPPINGS["ResolutionSwitch"] = "Resolution Switch"
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
+
+register_global_seed_handler()
 
 # Makes web/dynamic_prompt_engine.js available to ComfyUI.
 WEB_DIRECTORY = "./web"

@@ -1,5 +1,7 @@
 import hashlib
 
+from .global_seed import PICKER_HIDDEN, master_seed_from_dpe
+
 
 class FlexibleOptionalInputType(dict):
     """Accept dynamically named optional inputs (e.g. TagJoin tag_N sockets)."""
@@ -128,7 +130,7 @@ def connected_input_indices(kwargs, prefix, max_count):
     return sorted(indices)
 
 
-def pick_unique_line(pool_text, bypass_chance=False, seed=0, unique_id=None):
+def pick_unique_line(pool_text, bypass_chance=False, dpe_seed=None, unique_id=None):
     """PCG64 line pick and 50% gate used by Unique Line Picker and Seeded Text Pool.
 
     Returns (text, master_seed, gated). gated is True when the 50% gate skipped
@@ -136,7 +138,7 @@ def pick_unique_line(pool_text, bypass_chance=False, seed=0, unique_id=None):
     """
     import numpy as np
 
-    master_seed = int(seed)
+    master_seed = int(dpe_seed)
     stream_key = stream_key_from_unique_id(unique_id)
     lines = [
         line.strip()
@@ -158,17 +160,6 @@ def pick_unique_line(pool_text, bypass_chance=False, seed=0, unique_id=None):
     text = "" if chosen == "[empty]" else chosen
     return (text, master_seed, False)
 
-
-SEED_INPUT = (
-    "INT",
-    {
-        "default": 0,
-        "min": 0,
-        "max": 0xFFFFFFFFFFFFFFFF,
-        "step": 1,
-        "display": "number",
-    },
-)
 
 CHANCE_WEIGHTS = {
     "Default": 2,
@@ -214,7 +205,7 @@ class SeededTextPool:
         "Seeded Text Pool: picks one line from pool_text using the same PCG64 "
         "integers() as Unique Line Picker, then expands Impact Pack {a|b} / "
         "__wildcard__ on the chosen line using Unique Wildcard Processor's "
-        "mixed seed. Outputs: text, and seed unchanged.\n"
+        "mixed seed. Master seed comes from DPE Global Seed.\n"
         "\n"
         "Unlike Unique Line Picker: this node has a multiline pool_text widget, "
         "and {a|b} / __wildcard__ run on the chosen line.\n"
@@ -233,8 +224,7 @@ class SeededTextPool:
         "\n"
         "Edge cases: the literal line [empty] is a candidate that emits blank "
         "(not skipped). Impact Pack {a|b} / __wildcard__ runs only on the chosen "
-        "line and requires ComfyUI-Impact-Pack (raises if missing). Seed is "
-        "passed through even when text is empty."
+        "line and requires ComfyUI-Impact-Pack (raises if missing)."
     )
 
     @classmethod
@@ -258,30 +248,31 @@ class SeededTextPool:
                         "label_off": "Off",
                     },
                 ),
-                "seed": SEED_INPUT,
             },
-            "hidden": {
-                "unique_id": "UNIQUE_ID",
-            },
+            "hidden": PICKER_HIDDEN,
         }
 
-    RETURN_TYPES = ("STRING", "INT")
-    RETURN_NAMES = ("text", "seed")
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("text",)
     FUNCTION = "select_from_pool"
     CATEGORY = "Dynamic Prompt Engine"
 
     def select_from_pool(
-        self, pool_text, bypass_chance=False, seed=0, unique_id=None
+        self, pool_text, bypass_chance=False, dpe_seed=None, unique_id=None
     ):
-        text, master_seed, gated = pick_unique_line(
-            pool_text, bypass_chance=bypass_chance, seed=seed, unique_id=unique_id
+        master_seed = master_seed_from_dpe(dpe_seed, self.__class__.__name__)
+        text, _master_seed, gated = pick_unique_line(
+            pool_text,
+            bypass_chance=bypass_chance,
+            dpe_seed=master_seed,
+            unique_id=unique_id,
         )
         if gated:
-            return ("", master_seed)
+            return ("",)
         stream_seed = derive_stream_seed(
             master_seed, stream_key_from_unique_id(unique_id)
         )
-        return (process_impact_wildcards(text, stream_seed), master_seed)
+        return (process_impact_wildcards(text, stream_seed),)
 
 
 class UniqueLinePicker:
@@ -292,8 +283,8 @@ class UniqueLinePicker:
         "(input). Seed is mixed with "
         "this node's id, then np.random.default_rng(stream_seed).integers(0, n) "
         "chooses the line (same PCG64 generator Impact uses). Two copies of "
-        "this node with the same seed can still pick different lines. "
-        "Outputs: text, and seed unchanged.\n"
+        "this node with the same master seed can still pick different lines. "
+        "Master seed comes from DPE Global Seed.\n"
         "\n"
         "Unlike Seeded Text Pool: there is no multiline widget, and "
         "{a|b} / __wildcard__ are not expanded.\n"
@@ -311,7 +302,7 @@ class UniqueLinePicker:
         "Chosen line '[empty]' → empty string. Empty pool → empty string.\n"
         "\n"
         "Edge cases: the literal line [empty] is a candidate that emits blank "
-        "(not skipped). Seed is passed through even when text is empty."
+        "(not skipped)."
     )
 
     @classmethod
@@ -333,23 +324,24 @@ class UniqueLinePicker:
                         "label_off": "Off",
                     },
                 ),
-                "seed": SEED_INPUT,
             },
-            "hidden": {
-                "unique_id": "UNIQUE_ID",
-            },
+            "hidden": PICKER_HIDDEN,
         }
 
-    RETURN_TYPES = ("STRING", "INT")
-    RETURN_NAMES = ("text", "seed")
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("text",)
     FUNCTION = "pick_line"
     CATEGORY = "Dynamic Prompt Engine"
 
-    def pick_line(self, input, bypass_chance=False, seed=0, unique_id=None):
-        text, master_seed, _gated = pick_unique_line(
-            input, bypass_chance=bypass_chance, seed=seed, unique_id=unique_id
+    def pick_line(self, input, bypass_chance=False, dpe_seed=None, unique_id=None):
+        master_seed = master_seed_from_dpe(dpe_seed, self.__class__.__name__)
+        text, _master_seed, _gated = pick_unique_line(
+            input,
+            bypass_chance=bypass_chance,
+            dpe_seed=master_seed,
+            unique_id=unique_id,
         )
-        return (text, master_seed)
+        return (text,)
 
 
 class RoutingSwitch:
@@ -363,43 +355,33 @@ class RoutingSwitch:
         "more than Default, 2x is twice Default. Same seed+node id is "
         "deterministic.\n"
         "\n"
-        "Outputs the winning text (stripped, no extra commas) and the seed "
-        "unchanged so you can wire Unique Wildcard Processor (or Impact Pack) "
-        "yourself.\n"
+        "Outputs the winning text (stripped, no extra commas). Wire Unique "
+        "Wildcard Processor on the text output; master seed comes from "
+        "DPE Global Seed.\n"
         "\n"
         "Examples: three Default clothes groups → one of them, equal chance. "
         "input_0 Default and input_1 2x → input_1 wins about twice as often. "
-        "Only Off or unconnected left → empty text, seed still passed through."
+        "Only Off or unconnected left → empty text."
     )
 
     @classmethod
     def INPUT_TYPES(cls):
         return {
-            "required": {
-                "seed": SEED_INPUT,
-            },
+            "required": {},
             "optional": RoutingSwitchOptionalInputs(
                 {"input_0": ("STRING", {"default": "", "forceInput": True})},
             ),
-            "hidden": {
-                "unique_id": "UNIQUE_ID",
-            },
+            "hidden": PICKER_HIDDEN,
         }
 
-    RETURN_TYPES = ("STRING", "INT")
-    RETURN_NAMES = ("text", "seed")
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("text",)
     FUNCTION = "route"
     CATEGORY = "Dynamic Prompt Engine"
 
-    def route(self, seed=0, unique_id=None, **kwargs):
+    def route(self, dpe_seed=None, unique_id=None, **kwargs):
         node_name = self.__class__.__name__
-
-        try:
-            master_seed = int(seed)
-        except (TypeError, ValueError):
-            raise ValueError(
-                f"{node_name}: 'seed' must be a valid integer, got {seed!r}."
-            )
+        master_seed = master_seed_from_dpe(dpe_seed, node_name)
 
         eligible = []
         for index in numbered_input_indices(kwargs, "input_"):
@@ -413,7 +395,7 @@ class RoutingSwitch:
             eligible.append((weight, text))
 
         if not eligible:
-            return ("", master_seed)
+            return ("",)
 
         derived_seed = derive_stream_seed(
             master_seed, stream_key_from_unique_id(unique_id)
@@ -422,8 +404,8 @@ class RoutingSwitch:
         for weight, text in eligible:
             remaining -= weight
             if remaining < 0:
-                return (text, master_seed)
-        return (eligible[-1][1], master_seed)
+                return (text,)
+        return (eligible[-1][1],)
 
 
 class BranchSelector:
@@ -528,16 +510,12 @@ class BranchRandomSwitcher:
     @classmethod
     def INPUT_TYPES(cls):
         return {
-            "required": {
-                "seed": SEED_INPUT,
-            },
+            "required": {},
             "optional": FlexibleOptionalInputType(
                 "STRING",
                 {"branch_0": ("STRING", {"default": "", "forceInput": True})},
             ),
-            "hidden": {
-                "unique_id": "UNIQUE_ID",
-            },
+            "hidden": PICKER_HIDDEN,
         }
 
     RETURN_TYPES = ("STRING", "INT")
@@ -545,15 +523,8 @@ class BranchRandomSwitcher:
     FUNCTION = "select_branch"
     CATEGORY = "Dynamic Prompt Engine"
 
-    def select_branch(self, seed=0, unique_id=None, **kwargs):
-        node_name = self.__class__.__name__
-
-        try:
-            master_seed = int(seed)
-        except (TypeError, ValueError):
-            raise ValueError(
-                f"{node_name}: 'seed' must be a valid integer, got {seed!r}."
-            )
+    def select_branch(self, dpe_seed=None, unique_id=None, **kwargs):
+        master_seed = master_seed_from_dpe(dpe_seed, self.__class__.__name__)
 
         connected = connected_input_indices(kwargs, "branch_", MAX_BRANCHES)
         stream_key = stream_key_from_unique_id(unique_id)

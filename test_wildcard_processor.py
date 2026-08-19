@@ -28,9 +28,9 @@ except Exception:
 class SeededTextPoolAsWildcard:
     """Adapter: single-line pool_text pick is identity, then Impact expand."""
 
-    def doit(self, populated_text, seed=0, unique_id=None):
-        text, _ = SeededTextPool().select_from_pool(
-            populated_text, bypass_chance=False, seed=seed, unique_id=unique_id
+    def doit(self, populated_text, dpe_seed=0, unique_id=None):
+        text, = SeededTextPool().select_from_pool(
+            populated_text, bypass_chance=False, dpe_seed=dpe_seed, unique_id=unique_id
         )
         return (text,)
 
@@ -49,7 +49,7 @@ class _WildcardTestBase(unittest.TestCase):
 
     def expand(self, text, seed, unique_id="1"):
         (result,) = self.node.doit(
-            populated_text=text, seed=seed, unique_id=unique_id
+            populated_text=text, dpe_seed=seed, unique_id=unique_id
         )
         return result
 
@@ -67,9 +67,9 @@ def spec_stream_seed(master_seed, unique_id):
 
 
 class TestUniqueWildcardProcessorInputTypes(unittest.TestCase):
-    def test_required_keys_are_only_populated_text_and_seed(self):
+    def test_required_keys_are_only_populated_text(self):
         required = UniqueWildcardProcessor.INPUT_TYPES()["required"]
-        self.assertEqual(set(required.keys()), {"populated_text", "seed"})
+        self.assertEqual(set(required.keys()), {"populated_text"})
 
     def test_removed_impact_fields_are_absent(self):
         required = UniqueWildcardProcessor.INPUT_TYPES()["required"]
@@ -85,7 +85,7 @@ class TestUniqueWildcardProcessorInputTypes(unittest.TestCase):
 class TestUniqueWildcardProcessorProcess(_WildcardTestBase):
     def test_plain_text_returns_unchanged(self):
         template = "a red fox"
-        (result,) = self.node.doit(populated_text=template, seed=42)
+        (result,) = self.node.doit(populated_text=template, dpe_seed=42)
         self.assertEqual(result, "a red fox")
         self.assertEqual(template, "a red fox")
 
@@ -94,7 +94,7 @@ class TestUniqueWildcardProcessorProcess(_WildcardTestBase):
             process_wildcards.return_value = "expanded prompt"
             template = "a {red|blue} fox"
             (result,) = self.node.doit(
-                populated_text=template, seed=7, unique_id="55"
+                populated_text=template, dpe_seed=7, unique_id="55"
             )
             process_wildcards.assert_called_once_with(
                 template, spec_stream_seed(7, "55")
@@ -103,8 +103,8 @@ class TestUniqueWildcardProcessorProcess(_WildcardTestBase):
             self.assertEqual(template, "a {red|blue} fox")
 
     def test_plain_text_ignores_unique_id(self):
-        a, = self.node.doit(populated_text="plain", seed=1, unique_id="10")
-        b, = self.node.doit(populated_text="plain", seed=1, unique_id="20")
+        a, = self.node.doit(populated_text="plain", dpe_seed=1, unique_id="10")
+        b, = self.node.doit(populated_text="plain", dpe_seed=1, unique_id="20")
         self.assertEqual(a, "plain")
         self.assertEqual(b, "plain")
 
@@ -122,15 +122,15 @@ class TestUniqueWildcardProcessorUniqueId(_WildcardTestBase):
 
     def test_unique_id_list_matches_string(self):
         a, = self.node.doit(
-            populated_text=self.prompt, seed=7, unique_id="55"
+            populated_text=self.prompt, dpe_seed=7, unique_id="55"
         )
         b, = self.node.doit(
-            populated_text=self.prompt, seed=7, unique_id=["55"]
+            populated_text=self.prompt, dpe_seed=7, unique_id=["55"]
         )
         self.assertEqual(a, b)
 
     def test_missing_unique_id_uses_default_stream(self):
-        text, = self.node.doit(populated_text=self.prompt, seed=7)
+        text, = self.node.doit(populated_text=self.prompt, dpe_seed=7)
         self.assertEqual(text, self.expand(self.prompt, 7, unique_id=None))
 
     def test_different_nodes_can_expand_differently(self):
@@ -160,7 +160,7 @@ class TestUniqueWildcardProcessorOracle(_WildcardTestBase):
         uid = "55"
         for seed in (0, 1, 42, 100, 999):
             ours, = self.node.doit(
-                populated_text=prompt, seed=seed, unique_id=uid
+                populated_text=prompt, dpe_seed=seed, unique_id=uid
             )
             vanilla = impact_process(prompt, spec_stream_seed(seed, uid))
             self.assertEqual(ours, vanilla)
@@ -175,7 +175,7 @@ class TestUniqueWildcardProcessorOracle(_WildcardTestBase):
         if vanilla_raw == vanilla_mixed:
             self.skipTest("this seed collides between raw and mixed streams")
         ours, = self.node.doit(
-            populated_text=prompt, seed=seed, unique_id=uid
+            populated_text=prompt, dpe_seed=seed, unique_id=uid
         )
         self.assertEqual(ours, vanilla_mixed)
         self.assertNotEqual(ours, vanilla_raw)

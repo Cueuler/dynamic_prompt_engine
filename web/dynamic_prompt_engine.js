@@ -1,13 +1,5 @@
 import { app } from "../../scripts/app.js";
 import {
-  coerceLiveBypassWidget,
-  collectSeededTextPoolWidgetValues,
-  collectUniqueLinePickerWidgetValues,
-  migrateUniqueLinePickerWidgets,
-  pinSeededTextPoolWidgets,
-  pinUniqueLinePickerWidgets,
-} from "./bypass_widget.js";
-import {
   CHANCE_OPTIONS,
   applyParsedRoutingSwitchWidgets,
   connectedRoutingIndicesFromInputs,
@@ -407,33 +399,6 @@ function isSeedControlWidget(widget) {
   );
 }
 
-function seedBlockWidgets(widgets) {
-  const seed = widgets.find((widget) => widget.name === "seed");
-  const block = [];
-  const seen = new Set();
-
-  function push(widget) {
-    if (!widget || seen.has(widget)) {
-      return;
-    }
-    seen.add(widget);
-    block.push(widget);
-  }
-
-  push(seed);
-  if (Array.isArray(seed?.linkedWidgets)) {
-    for (const linked of seed.linkedWidgets) {
-      push(linked);
-    }
-  }
-  for (const widget of widgets) {
-    if (isSeedControlWidget(widget)) {
-      push(widget);
-    }
-  }
-  return block;
-}
-
 function removeNodeWidget(node, widget) {
   if (!widget) {
     return;
@@ -488,11 +453,8 @@ function ensureChanceWidget(node, index, savedValue) {
 
 function orderRoutingSwitchWidgets(node) {
   const widgets = node.widgets ?? [];
-  const seedBlock = seedBlockWidgets(widgets);
-  const seedSet = new Set(seedBlock);
   const rest = widgets.filter(
     (widget) =>
-      !seedSet.has(widget) &&
       !isChanceWidget(widget) &&
       !isLegacyRoutingLayoutWidget(widget),
   );
@@ -503,7 +465,7 @@ function orderRoutingSwitchWidgets(node) {
         Number.parseInt(a.name.slice("chance_".length), 10) -
         Number.parseInt(b.name.slice("chance_".length), 10),
     );
-  node.widgets = [...chances, ...seedBlock, ...rest];
+  node.widgets = [...chances, ...rest];
 }
 
 function clearRoutingSwitchSlotPositions(node) {
@@ -555,7 +517,7 @@ function syncRoutingSwitchChances(node) {
 
   orderRoutingSwitchWidgets(node);
   clearRoutingSwitchSlotPositions(node);
-  for (const widget of [...seedBlockWidgets(node.widgets ?? []), ...(node.widgets ?? []).filter(isChanceWidget)]) {
+  for (const widget of [...(node.widgets ?? []).filter(isChanceWidget)]) {
     delete widget.width;
   }
   labelChanceWidgets(node);
@@ -563,7 +525,7 @@ function syncRoutingSwitchChances(node) {
 
 function registerRoutingSwitch(nodeType) {
   // Default LiteGraph slot stack at the top. Chance combos (named like their
-  // inputs) then seed + Control after generate sit below as normal widgets.
+  // inputs) sit below as normal widgets; master seed comes from DPE Global Seed.
   registerDynamicStringNode(nodeType, routingSockets, {
     afterLayout: (node) => {
       const pending = node.__dpeRoutingWidgets;
@@ -646,293 +608,46 @@ function registerOutputPreviewNode(nodeType, previewName, placeholder) {
   };
 }
 
-const ENGINE_NODE_NAMES = new Set([
-  "SeededTextPool",
-  "UniqueLinePicker",
-  "RoutingSwitch",
-  "BranchRandomSwitcher",
-  "TagJoin",
-  "BranchSelector",
-  "UniqueWildcardProcessor",
-]);
-
-function expectedOutputCount(nodeData) {
-  if (Array.isArray(nodeData?.output)) {
-    return nodeData.output.length;
-  }
-  if (Array.isArray(nodeData?.output_name)) {
-    return nodeData.output_name.length;
-  }
-  return null;
-}
-
-/**
- * Saved workflows may still carry phantom outputs (e.g. TagJoin "seed") from older
- * UI experiments. Those slots are not in RETURN_TYPES, so links to them crash
- * validation with "tuple index out of range".
- */
-function syncNodeOutputsToSchema(node, nodeData) {
-  const expected = expectedOutputCount(nodeData);
-  if (expected == null || !Array.isArray(node.outputs)) {
+function disableGlobalSeedControlAfterGenerate(node) {
+  const seedWidget = (node.widgets ?? []).find((widget) => widget.name === "seed");
+  if (!seedWidget) {
     return;
   }
-  while (node.outputs.length > expected) {
-    const index = node.outputs.length - 1;
-    const output = node.outputs[index];
-    if (output?.links?.length) {
-      for (const linkId of [...output.links]) {
-        graphOf(node)?.removeLink?.(linkId);
-      }
-    }
-    node.removeOutput(index);
-  }
-}
-
-function looksLikeSeparator(value) {
-  return typeof value === "string" && /^[\s,]*$/.test(value);
-}
-
-/** Drop widgets removed from the Python schema (e.g. TagJoin separator). */
-function stripUnknownWidgets(node, nodeData) {
-  if (nodeData?.name !== "TagJoin" || !Array.isArray(node.widgets)) {
-    return;
-  }
-  const text = previewWidget(node);
-  for (let i = node.widgets.length - 1; i >= 0; i--) {
-    const widget = node.widgets[i];
-    if (widget?.name !== "separator") {
-      continue;
-    }
-    if (
-      text &&
-      looksLikeSeparator(text.value) &&
-      typeof widget.value === "string" &&
-      !looksLikeSeparator(widget.value)
-    ) {
-      text.value = widget.value;
-      if (text.inputEl && typeof text.inputEl.value === "string") {
-        text.inputEl.value = String(widget.value);
-      }
-    }
-    if (typeof node.removeWidget === "function") {
-      node.removeWidget(widget);
-    } else {
-      node.widgets.splice(i, 1);
+  seedWidget.options = seedWidget.options ?? {};
+  seedWidget.options.control_after_generate = false;
+  for (const widget of [...(node.widgets ?? [])]) {
+    if (isSeedControlWidget(widget)) {
+      removeNodeWidget(node, widget);
     }
   }
 }
 
-/**
- * Normalize TagJoin widget values saved by older workflow versions that had a
- * separator widget. Returns `[prompt]` or null when already in the current format.
- */
-function migrateTagJoinWidgets(info) {
-  const wv = info?.widgets_values;
-  if (!Array.isArray(wv) || wv.length !== 2) {
-    return null;
-  }
-  if (typeof wv[0] !== "string" || typeof wv[1] !== "string") {
-    return null;
-  }
-  const firstSep = looksLikeSeparator(wv[0]);
-  const secondSep = looksLikeSeparator(wv[1]);
-  if (firstSep && !secondSep) {
-    return [wv[1]];
-  }
-  if (secondSep && !firstSep) {
-    return [wv[0]];
-  }
-  return null;
-}
-
-/**
- * Normalize SeededTextPool widget values saved by older workflow versions.
- * Returns the converted [pool_text, bypass_chance, seed] array, or null when
- * the values are already in the current format.
- *
- * Known legacy layouts:
- *
- *   2-element:     [stream_key, pool_text]
- *   4-element A:   [stream_key, pool_text, bypass_chance (bool), seed (int)]
- *   4-element B:   [stream_key, pool_text, seed (int), seed_mode (str)]
- *   5-element C:   [stream_key, pool_text, bypass_chance (bool), seed, seed_mode]
- *   5-element D:   [stream_key, pool_text, seed (int), seed_mode (str), extra (str)]
- */
-function migrateSeededTextPoolWidgets(info) {
-  const wv = info?.widgets_values;
-  if (!Array.isArray(wv)) {
-    return null;
-  }
-  if (typeof wv[0] !== "string" || typeof wv[1] !== "string") {
-    return null;
-  }
-  // Legacy 2-element: [stream_key, pool_text] -> [pool_text, false, 0]
-  if (wv.length === 2) {
-    return [wv[1], false, 0];
-  }
-  // Legacy 4-element
-  if (wv.length === 4) {
-    // Format A: [stream_key, pool_text, bypass_chance (bool), seed] -> [pool_text, bypass_chance, seed]
-    if (typeof wv[2] === "boolean") {
-      return [wv[1], wv[2], wv[3]];
-    }
-    // Format B: [stream_key, pool_text, seed, seed_mode (str)] -> [pool_text, false, seed]
-    if (typeof wv[3] === "string") {
-      return [wv[1], false, wv[2]];
-    }
-  }
-  // Legacy 5-element: old ComfyUI seed widget stores [value, mode]
-  if (wv.length === 5) {
-    // Format C: [stream_key, pool_text, bypass_chance (bool), seed, seed_mode] -> [pool_text, bypass_chance, seed]
-    if (typeof wv[2] === "boolean") {
-      const seed = typeof wv[3] === "number" ? wv[3] : 0;
-      return [wv[1], wv[2], seed];
-    }
-    // Format D: [stream_key, pool_text, seed, seed_mode (str), extra (str)] -> [pool_text, false, seed]
-    if (typeof wv[2] === "number" && typeof wv[3] === "string") {
-      return [wv[1], false, wv[2]];
-    }
-  }
-  return null;
-}
-
-/** Push migrated values into the already-created widgets and their DOM elements. */
-function applyMigratedWidgetValues(node, values) {
-  if (!values) {
-    return;
-  }
-  for (let index = 0; index < values.length; index++) {
-    const widget = node.widgets?.[index];
-    if (!widget) {
-      continue;
-    }
-    widget.value = values[index];
-    if (widget.inputEl && typeof widget.inputEl.value === "string") {
-      widget.inputEl.value = String(values[index]);
-    }
-  }
-  node.setDirtyCanvas?.(true, true);
-}
-
-function pinBypassWidgets(node, nodeName, widgetsValues) {
-  if (nodeName === "UniqueLinePicker") {
-    pinUniqueLinePickerWidgets(node, widgetsValues);
-    return;
-  }
-  if (nodeName === "SeededTextPool") {
-    pinSeededTextPoolWidgets(node, widgetsValues);
-  }
-}
-
-function registerBypassPinning(nodeType, nodeName) {
-  const originalConnectionsChange = nodeType.prototype.onConnectionsChange;
-  nodeType.prototype.onConnectionsChange = function () {
-    const result = originalConnectionsChange?.apply(this, arguments);
-    queueMicrotask(() => {
-      coerceLiveBypassWidget(this);
-      if (nodeName === "UniqueLinePicker") {
-        this.__dpeWidgetValues = collectUniqueLinePickerWidgetValues(this);
-      } else if (nodeName === "SeededTextPool") {
-        this.__dpeWidgetValues = collectSeededTextPoolWidgetValues(this);
-      }
-      this.setDirtyCanvas?.(true, true);
-    });
-    return result;
-  };
-}
-
-function registerSchemaSync(nodeType, nodeData) {
+function registerGlobalSeedChrome(nodeType) {
   const originalCreated = nodeType.prototype.onNodeCreated;
   nodeType.prototype.onNodeCreated = function () {
     const result = originalCreated?.apply(this, arguments);
-    queueMicrotask(() => {
-      syncNodeOutputsToSchema(this, nodeData);
-      stripUnknownWidgets(this, nodeData);
-      if (
-        nodeData.name === "UniqueLinePicker" ||
-        nodeData.name === "SeededTextPool"
-      ) {
-        pinBypassWidgets(this, nodeData.name, this.__dpeWidgetValues ?? []);
-      }
-    });
+    queueMicrotask(() => disableGlobalSeedControlAfterGenerate(this));
     return result;
   };
 
   const originalConfigure = nodeType.prototype.onConfigure;
-  nodeType.prototype.onConfigure = function (info) {
-    let migrated = null;
-    if (nodeData.name === "SeededTextPool") {
-      migrated = migrateSeededTextPoolWidgets(info);
-      if (migrated) {
-        // Keep the in-memory node data canonical for re-serialization.
-        info.widgets_values = migrated;
-      }
-    } else if (nodeData.name === "UniqueLinePicker") {
-      migrated = migrateUniqueLinePickerWidgets(info);
-      if (migrated) {
-        info.widgets_values = migrated;
-      }
-    } else if (nodeData.name === "TagJoin") {
-      migrated = migrateTagJoinWidgets(info);
-      if (migrated) {
-        info.widgets_values = migrated;
-      }
-    }
-
-    if (
-      nodeData.name === "UniqueLinePicker" ||
-      nodeData.name === "SeededTextPool"
-    ) {
-      this.__dpeWidgetValues = Array.isArray(info?.widgets_values)
-        ? [...info.widgets_values]
-        : [];
-    }
-
+  nodeType.prototype.onConfigure = function () {
     originalConfigure?.apply(this, arguments);
-    // ComfyUI fills widget values before onConfigure runs, so mutating
-    // info.widgets_values alone leaves the visible widgets stale. Push the
-    // migrated values into the created widgets explicitly.
-    if (
-      nodeData.name === "UniqueLinePicker" ||
-      nodeData.name === "SeededTextPool"
-    ) {
-      pinBypassWidgets(this, nodeData.name, this.__dpeWidgetValues);
-    } else {
-      applyMigratedWidgetValues(this, migrated);
-    }
-    if (migrated && nodeData.name === "TagJoin") {
-      const text = previewWidget(this);
-      if (text) {
-        text.value = migrated[0];
-        if (text.inputEl && typeof text.inputEl.value === "string") {
-          text.inputEl.value = String(migrated[0]);
-        }
-      }
-    }
-    stripUnknownWidgets(this, nodeData);
-    requestAnimationFrame(() => {
-      syncNodeOutputsToSchema(this, nodeData);
-      stripUnknownWidgets(this, nodeData);
-      if (
-        nodeData.name === "UniqueLinePicker" ||
-        nodeData.name === "SeededTextPool"
-      ) {
-        pinBypassWidgets(this, nodeData.name, this.__dpeWidgetValues ?? []);
-      }
-    });
+    disableGlobalSeedControlAfterGenerate(this);
+    requestAnimationFrame(() => disableGlobalSeedControlAfterGenerate(this));
   };
 }
 
 app.registerExtension({
   name: "dynamic-prompt-engine.dynamic-sockets",
   beforeRegisterNodeDef(nodeType, nodeData) {
-    if (nodeData.name === "CLIPTokenReport") {
-      registerOutputPreviewNode(nodeType, "report", CLIP_REPORT_PLACEHOLDER);
-      registerSchemaSync(nodeType, nodeData);
+    if (nodeData.name === "DPEGlobalSeed") {
+      registerGlobalSeedChrome(nodeType);
       return;
     }
 
-    if (!ENGINE_NODE_NAMES.has(nodeData.name)) {
+    if (nodeData.name === "CLIPTokenReport") {
+      registerOutputPreviewNode(nodeType, "report", CLIP_REPORT_PLACEHOLDER);
       return;
     }
 
@@ -946,12 +661,6 @@ app.registerExtension({
       registerDynamicStringNode(nodeType, inputSockets);
     } else if (nodeData.name === "RoutingSwitch") {
       registerRoutingSwitch(nodeType);
-    }
-
-    // After dynamic-socket wrappers so schema sync runs last on create/configure.
-    registerSchemaSync(nodeType, nodeData);
-    if (nodeData.name === "UniqueLinePicker" || nodeData.name === "SeededTextPool") {
-      registerBypassPinning(nodeType, nodeData.name);
     }
   },
 });

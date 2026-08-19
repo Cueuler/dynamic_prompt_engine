@@ -26,11 +26,33 @@ These mapping keys also changed (not migrated automatically):
 - `SeededLinePicker` → `UniqueLinePicker`
 - `WildcardProcessor` → `UniqueWildcardProcessor`
 
+### DPE Global Seed (required controller)
+
+Picker nodes no longer have `seed` inputs or outputs. Workflows must include exactly
+one **DPE Global Seed** node whenever any seeded picker is present.
+
+Recommended wiring (install [rgthree-comfy](https://github.com/rgthree/rgthree-comfy) for the generator UI):
+
+```text
+[ Seed (rgthree) ] --SEED--> [ DPE Global Seed ] --seed--> [ KSampler ]
+                                      |
+                                      +-- (no wires) --> pickers receive seed at queue time
+```
+
+- Wire **rgthree Seed** → **DPE Global Seed** `seed` input (Randomize / increment / last-queued happen on the frontend before queue).
+- Optionally wire **DPE Global Seed** `seed` output → **KSampler** `seed`.
+- Do **not** wire seed to pickers; the server injects the same master INT into every picker at queue time.
+- **GlobalSeed //Inspire** in the same prompt is a hard error.
+- Missing **DPE Global Seed** when any picker is present is a hard error.
+
+Saved workflows: pickers no longer have seed sockets. Rebuild seed wiring as rgthree Seed → DPE Global Seed. Old picker seed links are not migrated.
+
 ## Architecture
 
 ```mermaid
 flowchart LR
-  seed[Seed]
+  rgthree["Seed (rgthree)"]
+  dpeSeed["DPE Global Seed"]
   rootPool["SeededTextPool"]
   linePicker["UniqueLinePicker"]
   routing[RoutingSwitch]
@@ -38,22 +60,19 @@ flowchart LR
   switcher[BranchRandomSwitcher]
   selector[BranchSelector]
   joins[TagJoins]
-  finalPrompt[OrderedPrompt]
+  ksampler[KSampler]
 
-  seed --> rootPool
-  seed --> linePicker
-  seed --> routing
-  seed --> switcher
+  rgthree -->|"SEED"| dpeSeed
+  dpeSeed -->|"seed"| ksampler
   rootPool --> joins
   linePicker --> joins
-  routing -->|"text + seed"| wildcard
+  routing --> wildcard
   wildcard --> joins
   switcher -->|"branch"| selector
   selector --> joins
-  joins -->|"prompt"| finalPrompt
 ```
 
-**Seeded** nodes (**Seeded Text Pool**, **Unique Line Picker**, **Routing Switch**, **Branch Random Switcher**, **Unique Wildcard Processor**) accept `seed` for deterministic selection. **Branch Selector** and **Tag Join** do not use seed.
+**Seeded** nodes (**Seeded Text Pool**, **Unique Line Picker**, **Routing Switch**, **Branch Random Switcher**, **Unique Wildcard Processor**) receive the master seed from **DPE Global Seed** at queue time (mixed with each node's `unique_id`). **Branch Selector** and **Tag Join** do not use seed.
 
 Empty or whitespace-only STRING inputs are skipped on join. Tag-like joins strip leading/trailing `,` and spaces from each part, then join with ", " and end with ", " when non-empty.
 
@@ -63,19 +82,24 @@ Category: **Dynamic Prompt Engine**
 
 | Node | Required inputs | Optional inputs | Outputs |
 |------|----------------|-----------------|---------|
-| **Seeded Text Pool** | `pool_text`, `bypass_chance`, `seed` | -- | `text`, `seed` |
-| **Unique Line Picker** | `input`, `bypass_chance`, `seed` | -- | `text`, `seed` |
-| **Routing Switch** | `seed` | dynamic `input_0`... plus `chance_N` combos | `text`, `seed` |
-| **Branch Random Switcher** | `seed` | `branch_0`...`branch_14` | `text`, `branch` |
+| **DPE Global Seed** | `seed` | -- | `seed` |
+| **Seeded Text Pool** | `pool_text`, `bypass_chance` | -- | `text` |
+| **Unique Line Picker** | `input`, `bypass_chance` | -- | `text` |
+| **Routing Switch** | -- | dynamic `input_0`... plus `chance_N` combos | `text` |
+| **Branch Random Switcher** | -- | `branch_0`...`branch_14` | `text`, `branch` |
 | **Branch Selector** | `branch` | `input_0`...`input_14` | `text` |
 | **Tag Join** | `text` preview | dynamic `tag_0`... | `prompt` |
-| **Unique Wildcard Processor** | `populated_text`, `seed` | -- | `processed text` |
+| **Unique Wildcard Processor** | `populated_text` | -- | `processed text` |
 | **CLIP Token Report** | `clip`, `text` (socket) | `report` preview | `report` |
 | **Resolution Switch** | `resolution`, `batch_size`, `clip_scale` | -- | `width`, `height`, `latent`, `scaled_width`, `scaled_height` |
 
+### DPE Global Seed
+
+Required controller for all seeded pickers. One INT in (`seed`, wire from **rgthree Seed**), one INT out (optional wire to **KSampler**). At queue time the resolved integer is copied into every picker; pickers have no seed sockets. `control_after_generate` is disabled on this node — use rgthree's buttons for randomize/increment.
+
 ### Seeded Text Pool
 
-Picks one line from `pool_text` using the same PCG64 `integers(0, n)` as **Unique Line Picker**, then expands Impact `{a|b}` / `__wildcard__` on the chosen line using the same mixed seed as **Unique Wildcard Processor**. Outputs `text` and passes `seed` through unchanged.
+Picks one line from `pool_text` using the same PCG64 `integers(0, n)` as **Unique Line Picker**, then expands Impact `{a|b}` / `__wildcard__` on the chosen line using the same mixed seed as **Unique Wildcard Processor**. Master seed comes from **DPE Global Seed**.
 
 - Candidates: split on newlines, strip, drop blank/whitespace lines.
 - `bypass_chance` **Off**: never gates. **50%**: `default_rng(hash(seed:node:{id}:gate)).integers(0, 2) == 0` returns empty text (same PCG64 `integers()` as Unique Line Picker; runs even if the pool is empty; Impact expand is skipped when gated).
@@ -90,7 +114,7 @@ Examples:
 
 ### Unique Line Picker
 
-Picks one line from a **socket-only** `input` STRING (wire another STRING in; no text widget). Unlike **Seeded Text Pool**, there is no multiline box, and `{a|b}` / `__wildcard__` are not expanded. ComfyUI's per-node `unique_id` is mixed into the seed, then `np.random.default_rng(stream_seed).integers(0, n)` chooses the line (same PCG64 generator Impact uses). Two copies of this node with the same seed can still pick different lines. Outputs `text` and passes `seed` through unchanged.
+Picks one line from a **socket-only** `input` STRING (wire another STRING in; no text widget). Unlike **Seeded Text Pool**, there is no multiline box, and `{a|b}` / `__wildcard__` are not expanded. ComfyUI's per-node `unique_id` is mixed into the master seed from **DPE Global Seed**, then `np.random.default_rng(stream_seed).integers(0, n)` chooses the line (same PCG64 generator Impact uses). Two copies of this node with the same master seed can still pick different lines.
 
 - Candidates: split on newlines, strip, drop blank/whitespace lines.
 - `bypass_chance` **Off**: never gates. **50%**: `default_rng(hash(seed:node:{id}:gate)).integers(0, 2) == 0` returns empty text (same PCG64 `integers()` as the line pick; runs even if the pool is empty).
@@ -110,7 +134,7 @@ Seeded weighted pick among uncapped dynamic `input_0`... STRING sockets (Tag Joi
 
 A slot enters the lottery only if it is wired (the `input_N` value is present and not `None`) and the combo is not Off. A wired empty or whitespace string is a real candidate and can win as `""`. Missing combo counts as Default. Integer weights: Default = 2, 1.5x = 3, 2x = 4. Pick is `hash(seed:node:{id}) % total_weight`.
 
-Outputs the winning string (stripped, no trailing comma) and the same `seed` so you can wire **Unique Wildcard Processor** (or Impact Pack) yourself.
+Outputs the winning string (stripped, no trailing comma). Wire **Unique Wildcard Processor** on the text output; master seed comes from **DPE Global Seed**.
 
 - Unconnected (`None` / omitted) and Off are excluded. Off does not add weight.
 - Connected empty/whitespace can win; output is `""`.

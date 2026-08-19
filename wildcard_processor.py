@@ -1,7 +1,7 @@
 """Impact-style wildcard expansion as a Dynamic Prompt Engine node."""
 
+from .global_seed import PICKER_HIDDEN, master_seed_from_dpe
 from .prompt_engine_nodes import (
-    SEED_INPUT,
     derive_stream_seed,
     process_impact_wildcards,
     stream_key_from_unique_id,
@@ -43,11 +43,8 @@ class UniqueWildcardProcessor:
                         ),
                     },
                 ),
-                "seed": SEED_INPUT,
             },
-            "hidden": {
-                "unique_id": "UNIQUE_ID",
-            },
+            "hidden": PICKER_HIDDEN,
         }
 
     RETURN_TYPES = ("STRING",)
@@ -55,8 +52,9 @@ class UniqueWildcardProcessor:
     FUNCTION = "doit"
     CATEGORY = "Dynamic Prompt Engine"
 
-    def doit(self, populated_text, seed=0, unique_id=None):
+    def doit(self, populated_text, dpe_seed=None, unique_id=None):
+        master_seed = master_seed_from_dpe(dpe_seed, self.__class__.__name__)
         stream_seed = derive_stream_seed(
-            int(seed), stream_key_from_unique_id(unique_id)
+            master_seed, stream_key_from_unique_id(unique_id)
         )
         return (process_impact_wildcards(populated_text, stream_seed),)
