@@ -1,4 +1,19 @@
 import { app } from "../../scripts/app.js";
+import {
+  coerceLiveBypassWidget,
+  collectSeededTextPoolWidgetValues,
+  collectUniqueLinePickerWidgetValues,
+  migrateUniqueLinePickerWidgets,
+  pinSeededTextPoolWidgets,
+  pinUniqueLinePickerWidgets,
+} from "./bypass_widget.js";
+import {
+  CHANCE_OPTIONS,
+  applyParsedRoutingSwitchWidgets,
+  connectedRoutingIndicesFromInputs,
+  parseRoutingSwitchWidgetValues,
+  routingInputIndex,
+} from "./routing_switch_widgets.js";
 
 const OUTPUT_WIDTH = 160;
 const OUTPUT_HEIGHT = 80;
@@ -133,7 +148,6 @@ const tagSockets = createDynamicSocketHelpers("tag_");
 const branchSockets = createDynamicSocketHelpers("branch_", MAX_BRANCHES);
 const inputSockets = createDynamicSocketHelpers("input_", MAX_BRANCHES);
 const routingSockets = createDynamicSocketHelpers("input_");
-const CHANCE_OPTIONS = ["Default", "Off", "1.5x", "2x"];
 
 const PREVIEW_DOM_INSET = 24;
 const PREVIEW_CHROME_PAD = 24;
@@ -420,14 +434,6 @@ function seedBlockWidgets(widgets) {
   return block;
 }
 
-function routingInputIndex(name) {
-  if (typeof name !== "string" || !name.startsWith("input_")) {
-    return Number.NaN;
-  }
-  const suffix = name.slice("input_".length);
-  return /^\d+$/.test(suffix) ? Number.parseInt(suffix, 10) : Number.NaN;
-}
-
 function removeNodeWidget(node, widget) {
   if (!widget) {
     return;
@@ -462,14 +468,17 @@ function labelChanceWidgets(node) {
 
 function ensureChanceWidget(node, index, savedValue) {
   const name = chanceWidgetName(index);
-  const existing = (node.widgets ?? []).find((widget) => widget.name === name);
-  if (existing) {
-    return existing;
-  }
   const value =
     typeof savedValue === "string" && CHANCE_OPTIONS.includes(savedValue)
       ? savedValue
       : "Default";
+  const existing = (node.widgets ?? []).find((widget) => widget.name === name);
+  if (existing) {
+    if (CHANCE_OPTIONS.includes(savedValue)) {
+      existing.value = savedValue;
+    }
+    return existing;
+  }
   const widget = node.addWidget("combo", name, value, () => {}, {
     values: CHANCE_OPTIONS,
   });
@@ -509,38 +518,10 @@ function clearRoutingSwitchSlotPositions(node) {
   }
 }
 
-function applyRoutingSwitchWidgetValues(node, widgetsValues) {
-  if (!Array.isArray(widgetsValues) || widgetsValues.length === 0) {
-    return;
-  }
-  const seed = (node.widgets ?? []).find((widget) => widget.name === "seed");
-  if (seed) {
-    const first = widgetsValues[0];
-    if (typeof first === "number") {
-      seed.value = first;
-    } else if (Array.isArray(first) && typeof first[0] === "number") {
-      seed.value = first[0];
-    }
-  }
-  const chanceValues = widgetsValues.filter((value) =>
-    CHANCE_OPTIONS.includes(value),
-  );
-  const chances = (node.widgets ?? [])
-    .filter(isChanceWidget)
-    .sort(
-      (a, b) =>
-        Number.parseInt(a.name.slice("chance_".length), 10) -
-        Number.parseInt(b.name.slice("chance_".length), 10),
-    );
-  for (let i = 0; i < chances.length && i < chanceValues.length; i++) {
-    chances[i].value = chanceValues[i];
-  }
-}
-
 function syncRoutingSwitchChances(node) {
   node.__dpeChanceSaved = node.__dpeChanceSaved || {};
   for (const widget of node.widgets ?? []) {
-    if (isChanceWidget(widget)) {
+    if (isChanceWidget(widget) && CHANCE_OPTIONS.includes(widget.value)) {
       node.__dpeChanceSaved[widget.name] = widget.value;
     }
   }
@@ -586,10 +567,24 @@ function registerRoutingSwitch(nodeType) {
   registerDynamicStringNode(nodeType, routingSockets, {
     afterLayout: (node) => {
       const pending = node.__dpeRoutingWidgets;
+      const connectedIndices =
+        node.__dpeRoutingConnected?.length > 0
+          ? node.__dpeRoutingConnected
+          : connectedRoutingIndicesFromInputs(node.inputs);
+      if (pending) {
+        applyParsedRoutingSwitchWidgets(
+          node,
+          parseRoutingSwitchWidgetValues(pending, { connectedIndices }),
+        );
+      }
       syncRoutingSwitchChances(node);
       if (pending) {
-        applyRoutingSwitchWidgetValues(node, pending);
+        applyParsedRoutingSwitchWidgets(
+          node,
+          parseRoutingSwitchWidgetValues(pending, { connectedIndices }),
+        );
         delete node.__dpeRoutingWidgets;
+        delete node.__dpeRoutingConnected;
       }
     },
   });
@@ -607,6 +602,7 @@ function registerRoutingSwitch(nodeType) {
     if (Array.isArray(info?.widgets_values)) {
       this.__dpeRoutingWidgets = [...info.widgets_values];
     }
+    this.__dpeRoutingConnected = connectedRoutingIndicesFromInputs(info?.inputs);
     originalConfigure?.apply(this, arguments);
   };
 }
@@ -800,25 +796,6 @@ function migrateSeededTextPoolWidgets(info) {
   return null;
 }
 
-/**
- * UniqueLinePicker used to expose only a seed widget. Inserting bypass_chance
- * before seed would otherwise steal the saved seed value.
- * Legacy: [seed] or [seed, seed_mode] → [false, seed]
- */
-function migrateUniqueLinePickerWidgets(info) {
-  const wv = info?.widgets_values;
-  if (!Array.isArray(wv) || wv.length === 0) {
-    return null;
-  }
-  if (typeof wv[0] === "boolean") {
-    return null;
-  }
-  if (typeof wv[0] === "number") {
-    return [false, wv[0]];
-  }
-  return null;
-}
-
 /** Push migrated values into the already-created widgets and their DOM elements. */
 function applyMigratedWidgetValues(node, values) {
   if (!values) {
@@ -837,6 +814,33 @@ function applyMigratedWidgetValues(node, values) {
   node.setDirtyCanvas?.(true, true);
 }
 
+function pinBypassWidgets(node, nodeName, widgetsValues) {
+  if (nodeName === "UniqueLinePicker") {
+    pinUniqueLinePickerWidgets(node, widgetsValues);
+    return;
+  }
+  if (nodeName === "SeededTextPool") {
+    pinSeededTextPoolWidgets(node, widgetsValues);
+  }
+}
+
+function registerBypassPinning(nodeType, nodeName) {
+  const originalConnectionsChange = nodeType.prototype.onConnectionsChange;
+  nodeType.prototype.onConnectionsChange = function () {
+    const result = originalConnectionsChange?.apply(this, arguments);
+    queueMicrotask(() => {
+      coerceLiveBypassWidget(this);
+      if (nodeName === "UniqueLinePicker") {
+        this.__dpeWidgetValues = collectUniqueLinePickerWidgetValues(this);
+      } else if (nodeName === "SeededTextPool") {
+        this.__dpeWidgetValues = collectSeededTextPoolWidgetValues(this);
+      }
+      this.setDirtyCanvas?.(true, true);
+    });
+    return result;
+  };
+}
+
 function registerSchemaSync(nodeType, nodeData) {
   const originalCreated = nodeType.prototype.onNodeCreated;
   nodeType.prototype.onNodeCreated = function () {
@@ -844,6 +848,12 @@ function registerSchemaSync(nodeType, nodeData) {
     queueMicrotask(() => {
       syncNodeOutputsToSchema(this, nodeData);
       stripUnknownWidgets(this, nodeData);
+      if (
+        nodeData.name === "UniqueLinePicker" ||
+        nodeData.name === "SeededTextPool"
+      ) {
+        pinBypassWidgets(this, nodeData.name, this.__dpeWidgetValues ?? []);
+      }
     });
     return result;
   };
@@ -868,11 +878,28 @@ function registerSchemaSync(nodeType, nodeData) {
         info.widgets_values = migrated;
       }
     }
+
+    if (
+      nodeData.name === "UniqueLinePicker" ||
+      nodeData.name === "SeededTextPool"
+    ) {
+      this.__dpeWidgetValues = Array.isArray(info?.widgets_values)
+        ? [...info.widgets_values]
+        : [];
+    }
+
     originalConfigure?.apply(this, arguments);
     // ComfyUI fills widget values before onConfigure runs, so mutating
     // info.widgets_values alone leaves the visible widgets stale. Push the
     // migrated values into the created widgets explicitly.
-    applyMigratedWidgetValues(this, migrated);
+    if (
+      nodeData.name === "UniqueLinePicker" ||
+      nodeData.name === "SeededTextPool"
+    ) {
+      pinBypassWidgets(this, nodeData.name, this.__dpeWidgetValues);
+    } else {
+      applyMigratedWidgetValues(this, migrated);
+    }
     if (migrated && nodeData.name === "TagJoin") {
       const text = previewWidget(this);
       if (text) {
@@ -886,6 +913,12 @@ function registerSchemaSync(nodeType, nodeData) {
     requestAnimationFrame(() => {
       syncNodeOutputsToSchema(this, nodeData);
       stripUnknownWidgets(this, nodeData);
+      if (
+        nodeData.name === "UniqueLinePicker" ||
+        nodeData.name === "SeededTextPool"
+      ) {
+        pinBypassWidgets(this, nodeData.name, this.__dpeWidgetValues ?? []);
+      }
     });
   };
 }
@@ -917,5 +950,8 @@ app.registerExtension({
 
     // After dynamic-socket wrappers so schema sync runs last on create/configure.
     registerSchemaSync(nodeType, nodeData);
+    if (nodeData.name === "UniqueLinePicker" || nodeData.name === "SeededTextPool") {
+      registerBypassPinning(nodeType, nodeData.name);
+    }
   },
 });
