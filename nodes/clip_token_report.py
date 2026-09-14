@@ -21,9 +21,9 @@ class CLIPTokenReport:
         "A1111 BREAK (word-boundary BREAK) starts a new CLIP window: each segment is "
         "tokenized separately so BREAK is not counted as a content token.\n"
         "\n"
-        "overflow output: True when any single BREAK segment needs more content "
-        "tokens than one window provides (75 for CLIP-L/G), so that segment spills "
-        "into an extra window. Segments are judged on their own, so short segments "
+        "overflow output: True when any single BREAK segment fills or exceeds one "
+        "window's content capacity (75 for CLIP-L/G) — 75/75 counts, since it "
+        "leaves no headroom. Segments are judged on their own, so short segments "
         "joined by BREAK do not trigger it. Windowless encoders (e.g. T5-XXL) never "
         "overflow. Commas are content tokens; only whitespace around BREAK is dropped."
     )

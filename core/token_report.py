@@ -43,7 +43,8 @@ def merge_token_dicts(left, right):
 
 
 def encoder_overflow(chunks, tokenizer):
-    """True when total content tokens exceed the tokenizer's window capacity.
+    """True when total content tokens fill or exceed the tokenizer's window
+    capacity (75/75 leaves no headroom and counts as overflow).
     Windowless tokenizers (e.g. T5) never overflow."""
     window = _tokenizer_window(tokenizer)
     if window is None:
@@ -53,11 +54,12 @@ def encoder_overflow(chunks, tokenizer):
         total += content_token_count(
             content_from_chunk(chunk, window["start_token"], window["end_token"])
         )
-    return total > window["content_capacity"]
+    return total >= window["content_capacity"]
 
 
 def detect_overflow(token_dict, root_tokenizer):
-    """True when any windowed encoder's chunks exceed its window capacity."""
+    """True when any windowed encoder's chunks fill or exceed its window
+    capacity."""
     for name, chunks in token_dict.items():
         if encoder_overflow(chunks, encoder_tokenizer(root_tokenizer, name)):
             return True

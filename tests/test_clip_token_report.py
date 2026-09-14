@@ -231,6 +231,14 @@ class TestDetectOverflow(unittest.TestCase):
         }
         self.assertTrue(detect_overflow(chunks, tokenizer))
 
+    def test_segment_exactly_at_capacity_overflows(self):
+        """75/75 leaves no window headroom, so it is flagged as overflow."""
+        content_ids = list(range(100, 175))
+        inv = {BOS: "<start>", EOS: "<end>", **{i: f"t{i}" for i in content_ids}}
+        tokenizer = FakeClipTokenizer(inv_vocab=inv)
+        chunks = {"l": [make_chunk(content_ids, pad_count=0)]}
+        self.assertTrue(detect_overflow(chunks, tokenizer))
+
     def test_unlimited_tokenizer_never_overflows(self):
         class T5Tokenizer:
             max_length = 999999
@@ -270,6 +278,17 @@ class TestTokenizePromptWithOverflow(unittest.TestCase):
             ]
         }
         _tokens, overflow = tokenize_prompt_with_overflow(clip, "long prompt")
+        self.assertEqual(overflow, {"l": True})
+
+    def test_single_segment_filling_capacity_overflows(self):
+        content_ids = list(range(100, 175))
+        inv = {BOS: "<start>", EOS: "<end>", **{i: f"t{i}" for i in content_ids}}
+        clip = MagicMock()
+        clip.tokenizer = FakeClipTokenizer(inv_vocab=inv)
+        clip.tokenize.return_value = {
+            "l": [make_chunk(content_ids, pad_count=0)]
+        }
+        _tokens, overflow = tokenize_prompt_with_overflow(clip, "full window")
         self.assertEqual(overflow, {"l": True})
 
     def test_break_segments_judged_separately_not_by_total(self):

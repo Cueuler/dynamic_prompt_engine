@@ -160,7 +160,7 @@ For SDXL / Illustrious XL, CLIP-L and CLIP-G each use a **77-token window**: 1 B
 
 - **On-node preview**: multiline `report` widget (filled after queue/run).
 - **STRING output**: same formatted report for Show Text or downstream nodes.
-- **BOOLEAN output `overflow`**: True when any single `BREAK` segment needs more content tokens than one window (75 for CLIP-L/G) and spills into an extra window. Segments are judged one at a time, so several short `BREAK` segments never trigger it even when their total exceeds 75. Windowless encoders (e.g. T5-XXL) never overflow. `BREAK` itself is never counted; a comma right before or after `BREAK` stays in its segment and counts as a content token.
+- **BOOLEAN output `overflow`**: True when any single `BREAK` segment fills or exceeds one window's content capacity (75 for CLIP-L/G) — 75/75 counts, since it leaves no headroom. Segments are judged one at a time, so several short `BREAK` segments never trigger it even when their total exceeds 75. Windowless encoders (e.g. T5-XXL) never overflow. `BREAK` itself is never counted; a comma right before or after `BREAK` stays in its segment and counts as a content token.
 - **Overflow line**: the `overflow: yes/no` line in the report matches the boolean output exactly.
 - **Textual inversions**: non-integer token slots appear as `[embedding]` in reconstructed text.
 
