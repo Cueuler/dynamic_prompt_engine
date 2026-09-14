@@ -663,11 +663,11 @@ class TestTagJoin(unittest.TestCase):
 
     def test_numeric_sort_order(self):
         result = self.node.join_tags(tag_10="b", tag_0="a", tag_2="c")
-        self.assertEqual(result["result"], ("a, c, b, ",))
+        self.assertEqual(result["result"], ("a, c, b",))
 
     def test_ignores_non_numeric_tag_keys(self):
         result = self.node.join_tags(tag_0="a", tag_foo="nope", tag_1="b")
-        self.assertEqual(result["result"], ("a, b, ",))
+        self.assertEqual(result["result"], ("a, b",))
 
 
 if __name__ == "__main__":

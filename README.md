@@ -48,7 +48,7 @@ flowchart LR
 
 **Seeded** nodes (**Seeded Text Pool**, **Unique Line Picker**, **Routing Switch**, **Unique Wildcard Processor**) receive the master seed from **DPE Global Seed** at queue time (mixed with each node's `unique_id`). **Tag Join** does not use seed.
 
-Empty or whitespace-only STRING inputs are skipped on join. Tag-like joins strip leading/trailing `,` and spaces from each part, then join with ", " and end with ", " when non-empty.
+Empty or whitespace-only STRING inputs are skipped on join. Tag-like joins strip leading/trailing `,` and spaces from each part, then join with ", " (no trailing comma after the last part).
 
 ## Custom nodes
 
@@ -125,13 +125,13 @@ Examples:
 Joins wired `tag_N` strings in numeric index order (`tag_10` after `tag_2`). Dynamic sockets: connected tags + one spare. No seed. The multiline `text` widget is a preview only (filled after run), not a tag input. Output: `prompt`.
 
 - Skip empty/whitespace tags; strip leading/trailing commas and spaces; skip again if nothing remains.
-- Join survivors with `", "` and add a trailing `", "` when non-empty. All empty → `""`.
+- Join survivors with `", "` — no trailing comma after the last tag. All empty → `""`.
 
 Examples:
 
-- `tag_0=red`, `tag_1=blue` → `"red, blue, "`.
-- `tag_0=""`, `tag_1=blue` → `"blue, "`.
-- `tag_0=red,`, `tag_1=, blue` → `"red, blue, "`.
+- `tag_0=red`, `tag_1=blue` → `"red, blue"`.
+- `tag_0=""`, `tag_1=blue` → `"blue"`.
+- `tag_0=red,`, `tag_1=, blue` → `"red, blue"`.
 - `tag_0` and `tag_2` wired, `tag_1` empty/unwired → join 0 then 2.
 
 ### Unique Wildcard Processor

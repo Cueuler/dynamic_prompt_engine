@@ -15,11 +15,11 @@ class TagJoin:
         "not a tag input. Output: prompt.\n"
         "\n"
         "Each tag: skip if empty/whitespace; strip leading/trailing commas and "
-        "spaces; skip again if nothing remains. Join survivors with ', ' and "
-        "add a trailing ', ' when the result is non-empty. All empty → ''.\n"
+        "spaces; skip again if nothing remains. Join survivors with ', ' "
+        "(no trailing comma after the last tag). All empty → ''.\n"
         "\n"
-        "Examples: tag_0='red', tag_1='blue' → 'red, blue, '. tag_0='', "
-        "tag_1='blue' → 'blue, '. tag_0='red,', tag_1=', blue' → 'red, blue, '. "
+        "Examples: tag_0='red', tag_1='blue' → 'red, blue'. tag_0='', "
+        "tag_1='blue' → 'blue'. tag_0='red,', tag_1=', blue' → 'red, blue'. "
         "tag_0 and tag_2 wired, tag_1 empty/unwired → join 0 then 2.\n"
         "\n"
         "Holes in tag indices are allowed; order is by number, not socket "
@@ -78,8 +78,6 @@ class TagJoin:
                 clean_tags.append(value)
 
         final_prompt = ", ".join(clean_tags)
-        if final_prompt:
-            final_prompt += ", "
 
         node_uid = resolve_unique_id(unique_id)
         if node_uid is not None and extra_pnginfo is not None:
