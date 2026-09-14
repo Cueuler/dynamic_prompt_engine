@@ -3,22 +3,23 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from dynamic_prompt_engine.global_seed import (
-    DPEGlobalSeed,
+from dynamic_prompt_engine.core.seeding import (
     GlobalSeedError,
     PICKER_NODE_CLASSES,
-    apply_global_seed_onprompt,
     master_seed_from_dpe,
-    register_global_seed_handler,
     resolve_seed_from_prompt_value,
 )
-from dynamic_prompt_engine.prompt_engine_nodes import (
-    BranchRandomSwitcher,
+from dynamic_prompt_engine.nodes.global_seed import (
+    DPEGlobalSeed,
+    apply_global_seed_onprompt,
+    register_global_seed_handler,
+)
+from dynamic_prompt_engine.nodes import (
     RoutingSwitch,
     SeededTextPool,
     UniqueLinePicker,
 )
-from dynamic_prompt_engine.wildcard_processor import UniqueWildcardProcessor
+from dynamic_prompt_engine.nodes import UniqueWildcardProcessor
 
 
 def _prompt(**nodes):
@@ -199,10 +200,6 @@ class TestPickerExecuteMissingSeed(unittest.TestCase):
         with self.assertRaises(GlobalSeedError):
             SeededTextPool().select_from_pool("a\nb", unique_id="1")
 
-    def test_branch_switcher_missing_dpe_seed_raises(self):
-        with self.assertRaises(GlobalSeedError):
-            BranchRandomSwitcher().select_branch(unique_id="1", branch_0="a")
-
     def test_wildcard_missing_dpe_seed_raises(self):
         with self.assertRaises(GlobalSeedError):
             UniqueWildcardProcessor().doit("plain", unique_id="1")
@@ -240,12 +237,11 @@ class TestPickerSchemaNoSeedIO(unittest.TestCase):
         (SeededTextPool, "select_from_pool"),
         (UniqueLinePicker, "pick_line"),
         (RoutingSwitch, "route"),
-        (BranchRandomSwitcher, "select_branch"),
         (UniqueWildcardProcessor, "doit"),
     )
 
     def test_picker_classes_registered(self):
-        self.assertEqual(len(PICKER_NODE_CLASSES), 5)
+        self.assertEqual(len(PICKER_NODE_CLASSES), 4)
 
     def test_no_seed_in_required_inputs(self):
         for cls, _fn in self.PICKERS:

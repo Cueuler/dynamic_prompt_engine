@@ -11,7 +11,7 @@ import unittest
 
 import numpy as np
 
-from dynamic_prompt_engine.prompt_engine_nodes import SeededTextPool, UniqueLinePicker
+from dynamic_prompt_engine.nodes import SeededTextPool, UniqueLinePicker
 
 
 class _LinePickerTestBase(unittest.TestCase):

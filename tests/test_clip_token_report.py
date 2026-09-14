@@ -3,19 +3,21 @@
 import unittest
 from unittest.mock import MagicMock
 
-from dynamic_prompt_engine.clip_token_report import (
-    CLIPTokenReport,
+from dynamic_prompt_engine.core.token_report import (
     CLIP_INVALID_MESSAGE,
     break_segments,
     content_from_chunk,
     content_signature,
     content_token_count,
+    detect_overflow,
     encoder_tokenizer,
     format_clip_token_report,
     merge_token_dicts,
     reconstruct_content,
     tokenize_prompt,
+    tokenize_prompt_with_overflow,
 )
+from dynamic_prompt_engine.nodes.clip_token_report import CLIPTokenReport
 
 
 BOS = 49406
@@ -126,16 +128,33 @@ class TestFormatClipTokenReport(unittest.TestCase):
         self.assertIn("[chunk 1/1]  2/75", report)
         self.assertIn("hello</w> world</w>", report)
 
-    def test_two_chunk_overflow(self):
+    def test_two_chunk_overflow_line_from_overflow_map(self):
         content_ids = list(range(100, 180))
         inv = {BOS: "<start>", EOS: "<end>", **{i: f"t{i}" for i in content_ids}}
         tokenizer = FakeClipTokenizer(inv_vocab=inv)
         chunk1 = make_chunk(content_ids[:75], pad_count=0)
         chunk2 = make_chunk(content_ids[75:], pad_count=70)
-        report = format_clip_token_report({"l": [chunk1, chunk2]}, tokenizer)
+        report = format_clip_token_report(
+            {"l": [chunk1, chunk2]}, tokenizer, overflow_by_encoder={"l": True}
+        )
         self.assertIn("chunks: 2    content tokens: 80    overflow: yes", report)
         self.assertIn("[chunk 1/2]  75/75", report)
         self.assertIn("[chunk 2/2]  5/75", report)
+
+    def test_overflow_defaults_to_no_without_overflow_map(self):
+        """Chunk totals alone no longer decide the overflow line: a segment
+        count must come from tokenize_prompt_with_overflow via the node."""
+        content_ids = list(range(100, 180))
+        inv = {BOS: "<start>", EOS: "<end>", **{i: f"t{i}" for i in content_ids}}
+        tokenizer = FakeClipTokenizer(inv_vocab=inv)
+        chunks = {
+            "l": [
+                make_chunk(content_ids[:75], pad_count=0),
+                make_chunk(content_ids[75:], pad_count=70),
+            ]
+        }
+        report = format_clip_token_report(chunks, tokenizer)
+        self.assertIn("chunks: 2    content tokens: 80    overflow: no", report)
 
     def test_dual_l_and_g_merge_when_identical(self):
         chunk_l = make_chunk([100, 101], pad_count=73)
@@ -183,6 +202,113 @@ class TestFormatClipTokenReport(unittest.TestCase):
         self.assertIn("tokens: 3", report)
         self.assertNotIn("window 77", report)
 
+    def test_merged_l_g_section_shows_overflow_from_raw_encoder_map(self):
+        chunk_l = make_chunk([100, 101], pad_count=73)
+        chunk_g = make_chunk([100, 101], pad_token=PAD_G, pad_count=73)
+        root = FakeSDXLTokenizer()
+        report = format_clip_token_report(
+            {"l": [chunk_l], "g": [chunk_g]}, root, overflow_by_encoder={"l": True}
+        )
+        overflow_lines = [line for line in report.splitlines() if "overflow:" in line]
+        self.assertEqual(len(overflow_lines), 1)
+        self.assertIn("overflow: yes", overflow_lines[0])
+
+
+class TestDetectOverflow(unittest.TestCase):
+    def test_single_small_chunk_does_not_overflow(self):
+        chunks = {"l": [make_chunk([100, 101], pad_count=73)]}
+        self.assertFalse(detect_overflow(chunks, FakeClipTokenizer()))
+
+    def test_segment_total_over_capacity_overflows(self):
+        content_ids = list(range(100, 180))
+        inv = {BOS: "<start>", EOS: "<end>", **{i: f"t{i}" for i in content_ids}}
+        tokenizer = FakeClipTokenizer(inv_vocab=inv)
+        chunks = {
+            "l": [
+                make_chunk(content_ids[:75], pad_count=0),
+                make_chunk(content_ids[75:], pad_count=70),
+            ]
+        }
+        self.assertTrue(detect_overflow(chunks, tokenizer))
+
+    def test_unlimited_tokenizer_never_overflows(self):
+        class T5Tokenizer:
+            max_length = 999999
+            start_token = None
+            end_token = None
+
+        root = MagicMock()
+        root.clip_t5xxl = T5Tokenizer()
+        chunks = {"t5xxl": [(i, 1.0) for i in range(500)]}
+        self.assertFalse(detect_overflow(chunks, root))
+
+    def test_empty_token_dict_does_not_overflow(self):
+        self.assertFalse(detect_overflow({}, FakeClipTokenizer()))
+
+
+class TestTokenizePromptWithOverflow(unittest.TestCase):
+    def test_segments_each_fitting_do_not_overflow(self):
+        clip = MagicMock()
+        clip.tokenizer = FakeClipTokenizer()
+        clip.tokenize.side_effect = [
+            {"l": [make_chunk([100], pad_count=74)]},
+            {"l": [make_chunk([101], pad_count=74)]},
+        ]
+        tokens, overflow = tokenize_prompt_with_overflow(clip, "hello BREAK world")
+        self.assertEqual(len(tokens["l"]), 2)
+        self.assertEqual(overflow, {})
+
+    def test_single_segment_exceeding_capacity_overflows(self):
+        content_ids = list(range(100, 180))
+        inv = {BOS: "<start>", EOS: "<end>", **{i: f"t{i}" for i in content_ids}}
+        clip = MagicMock()
+        clip.tokenizer = FakeClipTokenizer(inv_vocab=inv)
+        clip.tokenize.return_value = {
+            "l": [
+                make_chunk(content_ids[:75], pad_count=0),
+                make_chunk(content_ids[75:], pad_count=70),
+            ]
+        }
+        _tokens, overflow = tokenize_prompt_with_overflow(clip, "long prompt")
+        self.assertEqual(overflow, {"l": True})
+
+    def test_break_segments_judged_separately_not_by_total(self):
+        """70-token segment BREAK 70-token segment: 140 total tokens is above
+        one window, but each segment fits its own window — no overflow."""
+        content_a = list(range(100, 170))
+        content_b = list(range(200, 270))
+        inv = {
+            BOS: "<start>",
+            EOS: "<end>",
+            **{i: f"a{i}" for i in content_a},
+            **{i: f"b{i}" for i in content_b},
+        }
+        clip = MagicMock()
+        clip.tokenizer = FakeClipTokenizer(inv_vocab=inv)
+        clip.tokenize.side_effect = [
+            {"l": [make_chunk(content_a, pad_count=5)]},
+            {"l": [make_chunk(content_b, pad_count=5)]},
+        ]
+        _tokens, overflow = tokenize_prompt_with_overflow(clip, "a BREAK b")
+        self.assertEqual(overflow, {})
+
+    def test_only_overflowing_segment_is_flagged(self):
+        content_ids = list(range(100, 180))
+        inv = {BOS: "<start>", EOS: "<end>", **{i: f"t{i}" for i in content_ids}}
+        clip = MagicMock()
+        clip.tokenizer = FakeClipTokenizer(inv_vocab=inv)
+        clip.tokenize.side_effect = [
+            {"l": [make_chunk([100], pad_count=74)]},
+            {
+                "l": [
+                    make_chunk(content_ids[:75], pad_count=0),
+                    make_chunk(content_ids[75:], pad_count=70),
+                ]
+            },
+        ]
+        _tokens, overflow = tokenize_prompt_with_overflow(clip, "short BREAK long")
+        self.assertEqual(overflow, {"l": True})
+
 
 class TestEncoderTokenizer(unittest.TestCase):
     def test_sdxl_sub_tokenizers(self):
@@ -216,6 +342,7 @@ class TestBreakKeyword(unittest.TestCase):
 
     def test_tokenize_prompt_splits_then_tokenizes_each_segment(self):
         clip = MagicMock()
+        clip.tokenizer = FakeClipTokenizer()
         clip.tokenize.side_effect = [
             {"l": [make_chunk([100], pad_count=74)]},
             {"l": [make_chunk([101], pad_count=74)]},
@@ -256,6 +383,10 @@ class TestCLIPTokenReportNode(unittest.TestCase):
         self.assertTrue(required["report"][1].get("multiline"))
         self.assertNotIn("multiline", required["text"][1])
 
+    def test_return_types_and_names(self):
+        self.assertEqual(CLIPTokenReport.RETURN_TYPES, ("STRING", "BOOLEAN"))
+        self.assertEqual(CLIPTokenReport.RETURN_NAMES, ("report", "overflow"))
+
     def test_inspect_calls_tokenize_and_returns_ui(self):
         clip = MagicMock()
         clip.tokenizer = FakeClipTokenizer()
@@ -268,6 +399,39 @@ class TestCLIPTokenReportNode(unittest.TestCase):
         self.assertIn("result", result)
         self.assertEqual(result["ui"]["report"][0], result["result"][0])
         self.assertIn("CLIP-L", result["result"][0])
+
+    def test_inspect_overflow_true_when_segment_exceeds_window(self):
+        content_ids = list(range(100, 180))
+        inv = {BOS: "<start>", EOS: "<end>", **{i: f"t{i}" for i in content_ids}}
+        clip = MagicMock()
+        clip.tokenizer = FakeClipTokenizer(inv_vocab=inv)
+        clip.tokenize.return_value = {
+            "l": [
+                make_chunk(content_ids[:75], pad_count=0),
+                make_chunk(content_ids[75:], pad_count=70),
+            ]
+        }
+
+        result = self.node.inspect(clip, "long prompt", report="")
+
+        report_text, overflow = result["result"]
+        self.assertIsInstance(overflow, bool)
+        self.assertTrue(overflow)
+        self.assertIn("overflow: yes", report_text)
+
+    def test_inspect_overflow_false_when_break_segments_each_fit(self):
+        clip = MagicMock()
+        clip.tokenizer = FakeClipTokenizer()
+        clip.tokenize.side_effect = [
+            {"l": [make_chunk([100], pad_count=74)]},
+            {"l": [make_chunk([101], pad_count=74)]},
+        ]
+
+        result = self.node.inspect(clip, "hello BREAK world", report="")
+
+        report_text, overflow = result["result"]
+        self.assertIs(overflow, False)
+        self.assertIn("chunks: 2    content tokens: 2    overflow: no", report_text)
 
     def test_none_clip_raises(self):
         with self.assertRaises(RuntimeError) as ctx:

@@ -1,25 +1,21 @@
-"""Tests for BranchRandomSwitcher, RoutingSwitch, SeededTextPool, and helpers."""
+"""Tests for RoutingSwitch, SeededTextPool, TagJoin, and core helpers."""
 
 import hashlib
+import math
 import unittest
 from unittest.mock import patch
-from dynamic_prompt_engine.prompt_engine_nodes import (
-    BranchRandomSwitcher,
-    BranchSelector,
+from dynamic_prompt_engine.nodes import (
     RoutingSwitch,
     SeededTextPool,
     TagJoin,
-    chance_weight,
-    connected_input_indices,
-    MAX_BRANCHES,
-    normalize_chance_value,
-    numbered_input_indices,
-    stream_key_from_unique_id,
 )
+from dynamic_prompt_engine.core.text import chance_weight, normalize_chance_value
+from dynamic_prompt_engine.core.dynamic_inputs import numbered_input_indices
+from dynamic_prompt_engine.core.rng import stream_key_from_unique_id
 
 # Spec copy of Routing Switch lottery (README): Default=2, 1.5x=3, 2x=4;
 # r = sha256(f"{seed}:node:{id}")[:16] as int % total; walk cumulative weights
-# in sorted input index order. Independent of prompt_engine_nodes.route.
+# in sorted input index order. Independent of the RoutingSwitch.route implementation.
 _SPEC_WEIGHTS = {"Default": 2, "1.5x": 3, "2x": 4}
 
 
@@ -64,94 +60,64 @@ def spec_pick(seed, unique_id, slots):
     return eligible[-1][1]
 
 
-class TestBranchRandomSwitcher(unittest.TestCase):
-    def setUp(self):
-        self.node = BranchRandomSwitcher()
+def monte_carlo_route_wins(slots, trials=3000, unique_id="1"):
+    """Run RoutingSwitch.route() over trials seeds; return {text: win_count}.
+    Same slot shape as spec_pick: (index, text, chance); text None omits the
+    input kwarg (unconnected), chance None omits the chance kwarg (Default)."""
+    node = RoutingSwitch()
+    kwargs = {}
+    for index, text, chance in slots:
+        if text is not None:
+            kwargs[f"input_{index}"] = text
+        if chance is not None:
+            kwargs[f"chance_{index}"] = chance
+    wins = {}
+    for seed in range(trials):
+        text, = node.route(dpe_seed=seed, unique_id=unique_id, **kwargs)
+        wins[text] = wins.get(text, 0) + 1
+    return wins
 
-    def test_zero_connected_outputs_empty_text_and_branch_in_range(self):
-        text, branch = self.node.select_branch(dpe_seed=42, unique_id="1")
-        self.assertEqual(text, "")
-        self.assertIn(branch, (0, 1))
 
-    def test_zero_connected_is_deterministic(self):
-        b1 = self.node.select_branch(dpe_seed=42, unique_id="1")[1]
-        b2 = self.node.select_branch(dpe_seed=42, unique_id="1")[1]
-        self.assertEqual(b1, b2)
-
-    def test_single_connected_first_branch(self):
-        text, branch = self.node.select_branch(dpe_seed=42, unique_id="1", branch_0="alice")
-        self.assertEqual(branch, 0)
-        self.assertEqual(text, "alice, ")
-
-    def test_single_connected_middle_branch(self):
-        text, branch = self.node.select_branch(dpe_seed=42, unique_id="1", branch_3="alice")
-        self.assertEqual(branch, 3)
-        self.assertEqual(text, "alice, ")
-
-    def test_single_connected_last_branch_border(self):
-        text, branch = self.node.select_branch(dpe_seed=42, unique_id="1", branch_14="bob")
-        self.assertEqual(branch, 14)
-        self.assertEqual(text, "bob, ")
-
-    def test_multiple_connected_picks_among_connected(self):
-        text, branch = self.node.select_branch(
-            dpe_seed=42, unique_id="1", branch_0="a", branch_1="b", branch_2="c"
+def assert_win_counts_match_weights(case, wins, slots, trials, sigma=4.0):
+    """Every eligible slot's win count must sit within sigma·sqrt(N p (1-p))
+    of N·p (binomial standard deviation). Off and unconnected slots must
+    never win. sigma=4 on a deterministic hash draw: once green this can
+    never flake, and a failure means the distribution truly drifted."""
+    expected_counts = {}
+    for _index, text, chance in sorted(slots, key=lambda item: item[0]):
+        if text is None:
+            continue
+        weight = _spec_weight(chance)
+        if weight is None:
+            continue
+        key = str(text).strip()
+        expected_counts[key] = expected_counts.get(key, 0) + weight
+    total = sum(expected_counts.values())
+    case.assertEqual(
+        sum(wins.values()), trials,
+        "Every trial must produce exactly one winner",
+    )
+    for text, weight in expected_counts.items():
+        share = weight / total
+        expected = trials * share
+        tolerance = sigma * math.sqrt(trials * share * (1 - share))
+        observed = wins.get(text, 0)
+        case.assertAlmostEqual(
+            observed, expected, delta=tolerance,
+            msg=(
+                f"{text!r} (weight {weight}/{total}) won {observed}/{trials}; "
+                f"expected {expected:.1f} ± {tolerance:.1f}"
+            ),
         )
-        self.assertIn(branch, (0, 1, 2))
-        self.assertEqual(text, {0: "a, ", 1: "b, ", 2: "c, "}[branch])
-
-    def test_multiple_connected_is_deterministic(self):
-        args = dict(dpe_seed=42, unique_id="1", branch_0="a", branch_1="b")
-        self.assertEqual(self.node.select_branch(**args), self.node.select_branch(**args))
-
-    def test_all_fifteen_branches_border(self):
-        kwargs = {f"branch_{i}": f"v{i}" for i in range(MAX_BRANCHES)}
-        text, branch = self.node.select_branch(dpe_seed=7, unique_id="1", **kwargs)
-        self.assertGreaterEqual(branch, 0)
-        self.assertLess(branch, MAX_BRANCHES)
-        self.assertEqual(text, f"v{branch}, ")
-
-    def test_invalid_dpe_seed_raises(self):
-        with self.assertRaises(ValueError):
-            self.node.select_branch(dpe_seed="not-an-int", unique_id="1")
-
-    def test_different_unique_ids_can_differ(self):
-        differing = 0
-        for s in range(10):
-            _, a = self.node.select_branch(dpe_seed=s, unique_id="1", branch_0="x", branch_1="y")
-            _, b = self.node.select_branch(dpe_seed=s, unique_id="2", branch_0="x", branch_1="y")
-            if a != b:
-                differing += 1
-        self.assertGreater(differing, 0)
-
-
-class TestBranchSelector(unittest.TestCase):
-    def setUp(self):
-        self.node = BranchSelector()
-
-    def test_select_first(self):
-        self.assertEqual(self.node.select(0, input_0="alice", input_1="bob"), ("alice",))
-
-    def test_select_last_border(self):
-        self.assertEqual(self.node.select(14, input_14="bob"), ("bob",))
-
-    def test_select_missing_input_returns_skipped(self):
-        self.assertEqual(self.node.select(2, input_0="a"), ("branch 2 skipped",))
-
-    def test_select_empty_connected_input_returns_empty(self):
-        self.assertEqual(self.node.select(1, input_1=""), ("",))
-
-    def test_select_out_of_range_raises(self):
-        with self.assertRaises(ValueError):
-            self.node.select(15)
-
-    def test_select_negative_raises(self):
-        with self.assertRaises(ValueError):
-            self.node.select(-1)
+    for text in wins:
+        case.assertIn(
+            text, expected_counts,
+            f"Slot {text!r} won but is Off or unconnected",
+        )
 
 
 class TestStreamKeyFromUniqueId(unittest.TestCase):
-    """stream_key_from_unique_id remains used by BranchRandomSwitcher."""
+    """stream_key_from_unique_id keys per-node seed streams."""
 
     def test_none_falls_back_to_default(self):
         self.assertEqual(stream_key_from_unique_id(None), "default")
@@ -304,7 +270,7 @@ class TestRoutingSwitch(unittest.TestCase):
         """Uniform residues 0..5: Default weight 2, 2x weight 4 → 2 vs 4 wins."""
         wins = {"a": 0, "b": 0}
         with patch(
-            "dynamic_prompt_engine.prompt_engine_nodes.derive_stream_seed",
+            "dynamic_prompt_engine.nodes.routing_switch.derive_stream_seed",
             side_effect=range(6),
         ):
             for _ in range(6):
@@ -324,7 +290,7 @@ class TestRoutingSwitch(unittest.TestCase):
         """Uniform residues 0..4: Default weight 2, 1.5x weight 3 → 2 vs 3 wins."""
         wins = {"a": 0, "b": 0}
         with patch(
-            "dynamic_prompt_engine.prompt_engine_nodes.derive_stream_seed",
+            "dynamic_prompt_engine.nodes.routing_switch.derive_stream_seed",
             side_effect=range(5),
         ):
             for _ in range(5):
@@ -342,7 +308,7 @@ class TestRoutingSwitch(unittest.TestCase):
 
     def test_off_never_wins_across_all_residues(self):
         with patch(
-            "dynamic_prompt_engine.prompt_engine_nodes.derive_stream_seed",
+            "dynamic_prompt_engine.nodes.routing_switch.derive_stream_seed",
             side_effect=range(6),
         ):
             for _ in range(6):
@@ -540,6 +506,98 @@ class TestRoutingSwitch(unittest.TestCase):
             self.assertEqual(text, spec_pick(s, "1", slots))
 
 
+class TestRoutingSwitchMonteCarlo(unittest.TestCase):
+    """Empirical win rates over the real hash pipeline (3000 seeds per case).
+
+    These tests do not patch derive_stream_seed: they sweep dpe_seed=0..2999
+    through route() and check each slot's win count against its weight share
+    within a 4-sigma binomial band. Seed derivation is deterministic, so once
+    green they can never flake — a failure means route()'s distribution
+    genuinely drifted from the configured chances.
+    """
+
+    TRIALS = 3000
+
+    def assertDistribution(self, slots, trials=None, sigma=4.0, unique_id="1"):
+        trials = trials if trials is not None else self.TRIALS
+        wins = monte_carlo_route_wins(slots, trials=trials, unique_id=unique_id)
+        assert_win_counts_match_weights(self, wins, slots, trials, sigma=sigma)
+        return wins
+
+    def test_default_vs_default_splits_fifty_fifty(self):
+        self.assertDistribution(
+            ((0, "a", "Default"), (1, "b", "Default")),
+        )
+
+    def test_default_vs_one_point_five_splits_two_to_three(self):
+        self.assertDistribution(
+            ((0, "a", "Default"), (1, "b", "1.5x")),
+        )
+
+    def test_default_vs_two_x_splits_one_to_two(self):
+        self.assertDistribution(
+            ((0, "a", "Default"), (1, "b", "2x")),
+        )
+
+    def test_one_point_five_vs_one_point_five_splits_fifty_fifty(self):
+        self.assertDistribution(
+            ((0, "a", "1.5x"), (1, "b", "1.5x")),
+        )
+
+    def test_one_point_five_vs_two_x_splits_three_to_four(self):
+        self.assertDistribution(
+            ((0, "a", "1.5x"), (1, "b", "2x")),
+        )
+
+    def test_two_x_vs_two_x_splits_fifty_fifty(self):
+        self.assertDistribution(
+            ((0, "a", "2x"), (1, "b", "2x")),
+        )
+
+    def test_three_way_mix_matches_two_three_four(self):
+        self.assertDistribution(
+            (
+                (0, "plain", "Default"),
+                (1, "boost", "1.5x"),
+                (2, "double", "2x"),
+            ),
+        )
+
+    def test_off_never_wins_and_others_split_remaining_weight(self):
+        self.assertDistribution(
+            (
+                (0, "off-text", "Off"),
+                (1, "plain", "Default"),
+                (2, "double", "2x"),
+            ),
+        )
+
+    def test_connected_empty_slot_wins_its_expected_share(self):
+        wins = self.assertDistribution(
+            ((0, "a", "Default"), (1, "", "2x")),
+        )
+        self.assertGreater(
+            wins.get("", 0), 0,
+            "Wired-empty 2x slot should sometimes win across 3000 seeds",
+        )
+
+    def test_missing_chance_kwarg_counts_as_default_in_distribution(self):
+        self.assertDistribution(
+            ((0, "a", None), (1, "b", "2x")),
+        )
+
+    def test_pooled_across_node_ids_still_matches_weights(self):
+        """Pool five distinct node streams: no node id may skew the lottery."""
+        slots = ((0, "a", "Default"), (1, "b", "2x"))
+        per_node = self.TRIALS // 5
+        pooled = {"a": 0, "b": 0}
+        for uid in ("1", "2", "3", "4", "5"):
+            wins = monte_carlo_route_wins(slots, trials=per_node, unique_id=uid)
+            pooled["a"] += wins.get("a", 0)
+            pooled["b"] += wins.get("b", 0)
+        assert_win_counts_match_weights(self, pooled, slots, self.TRIALS)
+
+
 class TestChanceHelpers(unittest.TestCase):
     def test_chance_weight_labels(self):
         self.assertEqual(chance_weight("Default"), 2)
@@ -597,22 +655,6 @@ class TestSeededTextPoolUniqueId(unittest.TestCase):
         text_1, = self.node.select_from_pool(pool, dpe_seed=42, unique_id="55")
         text_2, = self.node.select_from_pool(pool, dpe_seed=42, unique_id="55")
         self.assertEqual(text_1, text_2)
-
-
-class TestConnectedInputIndices(unittest.TestCase):
-    def test_extracts_and_sorts_in_range_indices(self):
-        kwargs = {"branch_2": "b", "branch_0": "a", "branch_10": "c", "other": "x"}
-        self.assertEqual(
-            connected_input_indices(kwargs, "branch_", MAX_BRANCHES), [0, 2, 10]
-        )
-
-    def test_ignores_non_numeric_and_out_of_range(self):
-        kwargs = {"branch_abc": "x", "branch_15": "too high", "branch_-1": "neg"}
-        self.assertEqual(connected_input_indices(kwargs, "branch_", MAX_BRANCHES), [])
-
-    def test_ignores_other_prefixes(self):
-        kwargs = {"input_0": "x", "tag_0": "y"}
-        self.assertEqual(connected_input_indices(kwargs, "branch_", MAX_BRANCHES), [])
 
 
 class TestTagJoin(unittest.TestCase):

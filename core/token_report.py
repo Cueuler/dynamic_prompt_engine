@@ -1,4 +1,4 @@
-"""CLIP token chunk inspection for ComfyUI SDXL / SD1.5 encoders."""
+"""CLIP token chunk inspection helpers for ComfyUI SDXL / SD1.5 encoders."""
 
 import re
 
@@ -42,14 +42,51 @@ def merge_token_dicts(left, right):
     return merged
 
 
-def tokenize_prompt(clip, text):
-    """Tokenize like A1111 BREAK: each segment is its own clip.tokenize() call."""
+def encoder_overflow(chunks, tokenizer):
+    """True when total content tokens exceed the tokenizer's window capacity.
+    Windowless tokenizers (e.g. T5) never overflow."""
+    window = _tokenizer_window(tokenizer)
+    if window is None:
+        return False
+    total = 0
+    for chunk in chunks:
+        total += content_token_count(
+            content_from_chunk(chunk, window["start_token"], window["end_token"])
+        )
+    return total > window["content_capacity"]
+
+
+def detect_overflow(token_dict, root_tokenizer):
+    """True when any windowed encoder's chunks exceed its window capacity."""
+    for name, chunks in token_dict.items():
+        if encoder_overflow(chunks, encoder_tokenizer(root_tokenizer, name)):
+            return True
+    return False
+
+
+def tokenize_prompt_with_overflow(clip, text, tokenizer=None):
+    """Tokenize each A1111 BREAK segment as its own clip.tokenize() call and
+    judge every segment against one window on its own (BREAK is never a token;
+    an overflowing segment spills into extra chunks and is flagged here).
+    Returns (merged_token_dict, overflow_by_encoder)."""
     segments = break_segments(text)
     if not segments:
-        return clip.tokenize("")
+        return clip.tokenize(""), {}
+    tokenizer = clip.tokenizer if tokenizer is None else tokenizer
     merged = None
+    overflow = {}
     for segment in segments:
-        merged = merge_token_dicts(merged, clip.tokenize(segment))
+        tokenized = clip.tokenize(segment)
+        merged = merge_token_dicts(merged, tokenized)
+        for name, chunks in tokenized.items():
+            if encoder_overflow(chunks, encoder_tokenizer(tokenizer, name)):
+                overflow[name] = True
+    return merged, overflow
+
+
+def tokenize_prompt(clip, text):
+    """Tokenize like A1111 BREAK: each segment is its own clip.tokenize() call."""
+    merged, _overflow = tokenize_prompt_with_overflow(clip, text)
     return merged
 
 
@@ -191,7 +228,7 @@ def _format_unlimited_section(label, chunks, tokenizer):
     return "\n".join(lines)
 
 
-def _format_window_section(label, chunks, tokenizer, window):
+def _format_window_section(label, chunks, tokenizer, window, overflow):
     max_length = window["max_length"]
     content_capacity = window["content_capacity"]
     start_token = window["start_token"]
@@ -205,7 +242,6 @@ def _format_window_section(label, chunks, tokenizer, window):
         total_content += content_token_count(content)
 
     chunk_count = len(chunks) if chunks else 1
-    overflow = total_content > content_capacity
 
     lines = [
         f"{label}  window {max_length}, content capacity {content_capacity}",
@@ -228,7 +264,7 @@ def _format_window_section(label, chunks, tokenizer, window):
     return "\n".join(lines).rstrip()
 
 
-def format_encoder_section(name, chunks, root_tokenizer, label=None):
+def format_encoder_section(name, chunks, root_tokenizer, label=None, overflow=False):
     tokenizer = encoder_tokenizer(root_tokenizer, name)
     label = label or encoder_label(name)
     window = _tokenizer_window(tokenizer)
@@ -236,7 +272,32 @@ def format_encoder_section(name, chunks, root_tokenizer, label=None):
     if window is None:
         return _format_unlimited_section(label, chunks, tokenizer)
 
-    return _format_window_section(label, chunks, tokenizer, window)
+    return _format_window_section(label, chunks, tokenizer, window, overflow)
+
+
+def format_clip_token_report(token_dict, root_tokenizer, overflow_by_encoder=None):
+    """Build the full multi-encoder report string. overflow_by_encoder maps raw
+    encoder names (as produced by clip.tokenize) to whether any BREAK segment
+    overflowed that encoder's window; merged CLIP-L / CLIP-G flags if either."""
+    if not token_dict:
+        return ""
+
+    overflow_by_encoder = overflow_by_encoder or {}
+    sections = []
+    for name, chunks, label in _iter_report_sections(token_dict, root_tokenizer):
+        section_overflow = overflow_by_encoder.get(name, False)
+        if name == "l/g":
+            section_overflow = (
+                overflow_by_encoder.get("l", False)
+                or overflow_by_encoder.get("g", False)
+            )
+        sections.append(
+            format_encoder_section(
+                name, chunks, root_tokenizer, label=label, overflow=section_overflow
+            )
+        )
+
+    return "\n\n".join(section for section in sections if section)
 
 
 def _iter_report_sections(token_dict, root_tokenizer):
@@ -258,74 +319,3 @@ def _iter_report_sections(token_dict, root_tokenizer):
         if merge_l_g and name == "g":
             continue
         yield name, token_dict[name], encoder_label(name)
-
-
-def format_clip_token_report(token_dict, root_tokenizer):
-    """Build the full multi-encoder report string."""
-    if not token_dict:
-        return ""
-
-    sections = []
-    for name, chunks, label in _iter_report_sections(token_dict, root_tokenizer):
-        sections.append(format_encoder_section(name, chunks, root_tokenizer, label=label))
-
-    return "\n\n".join(section for section in sections if section)
-
-
-class CLIPTokenReport:
-    """Inspect CLIP token chunks without encoding."""
-
-    DESCRIPTION = (
-        "CLIP Token Report: tokenizes the prompt with the connected CLIP model and reports how "
-        "ComfyUI splits it into 77-token CLIP windows (75 content tokens each "
-        "for SDXL CLIP-L/G). Inspect-only: does not output conditioning.\n"
-        "\n"
-        "Wire prompt text from upstream nodes (socket input). Chunk text lines use "
-        "tokenizer.decode() on each chunk's content token ids.\n"
-        "\n"
-        "A1111 BREAK (word-boundary BREAK) starts a new CLIP window: each segment is "
-        "tokenized separately so BREAK is not counted as a content token."
-    )
-
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "clip": ("CLIP",),
-                "text": (
-                    "STRING",
-                    {
-                        "default": "",
-                        "forceInput": True,
-                    },
-                ),
-                "report": (
-                    "STRING",
-                    {
-                        "default": "",
-                        "multiline": True,
-                        "dynamicPrompts": False,
-                        "placeholder": "Token report preview (empty until run)…",
-                    },
-                ),
-            },
-        }
-
-    RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("report",)
-    FUNCTION = "inspect"
-    CATEGORY = "Dynamic Prompt Engine"
-    OUTPUT_NODE = True
-
-    def inspect(self, clip, text, report=""):
-        del report  # preview widget only; filled from execution result
-        if clip is None:
-            raise RuntimeError(CLIP_INVALID_MESSAGE)
-
-        tokens = tokenize_prompt(clip, text)
-        report_text = format_clip_token_report(tokens, clip.tokenizer)
-
-        return {
-            "ui": {"report": [report_text]},
-            "result": (report_text,),
-        }

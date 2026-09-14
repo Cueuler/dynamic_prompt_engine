@@ -135,10 +135,7 @@ function createDynamicSocketHelpers(prefix, maxCount = Number.POSITIVE_INFINITY)
   };
 }
 
-const MAX_BRANCHES = 15;
 const tagSockets = createDynamicSocketHelpers("tag_");
-const branchSockets = createDynamicSocketHelpers("branch_", MAX_BRANCHES);
-const inputSockets = createDynamicSocketHelpers("input_", MAX_BRANCHES);
 const routingSockets = createDynamicSocketHelpers("input_");
 
 const PREVIEW_DOM_INSET = 24;
@@ -655,10 +652,6 @@ app.registerExtension({
       registerDynamicStringNode(nodeType, tagSockets, {
         withOutputPreview: true,
       });
-    } else if (nodeData.name === "BranchRandomSwitcher") {
-      registerDynamicStringNode(nodeType, branchSockets);
-    } else if (nodeData.name === "BranchSelector") {
-      registerDynamicStringNode(nodeType, inputSockets);
     } else if (nodeData.name === "RoutingSwitch") {
       registerRoutingSwitch(nodeType);
     }

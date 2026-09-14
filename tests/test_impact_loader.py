@@ -2,7 +2,7 @@
 
 import unittest
 
-from dynamic_prompt_engine.impact_loader import (
+from dynamic_prompt_engine.core.impact_loader import (
     DEV_IMPACT_DIR,
     IMPACT_PACK_COMMIT,
     PACKAGE_ROOT,
@@ -29,7 +29,7 @@ class TestImpactPackPin(unittest.TestCase):
         self.assertTrue(any(str(DEV_IMPACT_DIR) == path for path in roots))
 
     def test_without_comfyui_loader_is_not_runtime(self):
-        from dynamic_prompt_engine.impact_loader import is_comfyui_runtime
+        from dynamic_prompt_engine.core.impact_loader import is_comfyui_runtime
 
         self.assertFalse(is_comfyui_runtime())
 

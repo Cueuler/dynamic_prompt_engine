@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  python-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dev dependencies
+        run: pip install -r dev-requirements.txt
+      - name: Run Python test suite
+        run: python -m unittest discover -s tests -v
+        env:
+          # Repo root is the package itself; imports need the parent dir.
+          PYTHONPATH: ${{ github.workspace }}/..
+        # Impact-oracle wildcard tests self-skip without the .dev fixture;
+        # clone it locally via `python -m dynamic_prompt_engine.setup_dev`.
+
+  web-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run web widget tests
+        working-directory: web
+        run: node --test

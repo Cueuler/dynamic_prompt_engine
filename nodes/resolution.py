@@ -55,11 +55,11 @@ class ResolutionSwitch:
         width = int(parts[0].strip())
         # The second part contains the height and aspect ratio e.g., "1024 (1:1)"
         height = int(parts[1].split("(")[0].strip())
-        
+
         scaled_width = int(width * clip_scale)
         scaled_height = int(height * clip_scale)
 
         # Create an empty latent tensor (shape: [batch, channels, height // 8, width // 8])
         latent = torch.zeros([batch_size, 4, height // 8, width // 8])
-        
+
         return (width, height, {"samples": latent}, scaled_width, scaled_height)

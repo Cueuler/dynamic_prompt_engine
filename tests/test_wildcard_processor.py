@@ -12,9 +12,9 @@ import hashlib
 import unittest
 from unittest.mock import patch
 
-from dynamic_prompt_engine.impact_loader import ensure_impact_wildcards
-from dynamic_prompt_engine.prompt_engine_nodes import SeededTextPool
-from dynamic_prompt_engine.wildcard_processor import UniqueWildcardProcessor
+from dynamic_prompt_engine.core.impact_loader import ensure_impact_wildcards
+from dynamic_prompt_engine.nodes import SeededTextPool
+from dynamic_prompt_engine.nodes import UniqueWildcardProcessor
 
 
 try:
@@ -37,7 +37,7 @@ class SeededTextPoolAsWildcard:
 
 class _WildcardTestBase(unittest.TestCase):
     PROCESS_PATCH = (
-        "dynamic_prompt_engine.wildcard_processor.process_impact_wildcards"
+        "dynamic_prompt_engine.nodes.wildcard_processor.process_impact_wildcards"
     )
 
     @staticmethod
@@ -442,7 +442,7 @@ class TestStolenWildcardFinal(_WildcardTestBase):
 
 class _SeededTextPoolWildcardOverrides:
     PROCESS_PATCH = (
-        "dynamic_prompt_engine.prompt_engine_nodes.process_impact_wildcards"
+        "dynamic_prompt_engine.nodes.seeded_text_pool.process_impact_wildcards"
     )
 
     @staticmethod

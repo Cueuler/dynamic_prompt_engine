@@ -1,17 +1,15 @@
-from .prompt_engine_nodes import (
+from .nodes import (
     SeededTextPool,
     UniqueLinePicker,
     RoutingSwitch,
-    BranchRandomSwitcher,
-    BranchSelector,
     TagJoin,
+    CLIPTokenReport,
+    UniqueWildcardProcessor,
+    DPEGlobalSeed,
 )
-from .clip_token_report import CLIPTokenReport
-from .wildcard_processor import UniqueWildcardProcessor
-from .global_seed import DPEGlobalSeed, register_global_seed_handler
 
 try:
-    from .resolution_node import ResolutionSwitch
+    from .nodes.resolution import ResolutionSwitch
 except ImportError:
     ResolutionSwitch = None
 
@@ -19,8 +17,6 @@ NODE_CLASS_MAPPINGS = {
     "SeededTextPool": SeededTextPool,
     "UniqueLinePicker": UniqueLinePicker,
     "RoutingSwitch": RoutingSwitch,
-    "BranchRandomSwitcher": BranchRandomSwitcher,
-    "BranchSelector": BranchSelector,
     "TagJoin": TagJoin,
     "CLIPTokenReport": CLIPTokenReport,
     "UniqueWildcardProcessor": UniqueWildcardProcessor,
@@ -31,8 +27,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SeededTextPool": "Seeded Text Pool",
     "UniqueLinePicker": "Unique Line Picker",
     "RoutingSwitch": "Routing Switch",
-    "BranchRandomSwitcher": "Branch Random Switcher",
-    "BranchSelector": "Branch Selector",
     "TagJoin": "Tag Join",
     "CLIPTokenReport": "CLIP Token Report",
     "UniqueWildcardProcessor": "Unique Wildcard Processor",
@@ -44,6 +38,8 @@ if ResolutionSwitch is not None:
     NODE_DISPLAY_NAME_MAPPINGS["ResolutionSwitch"] = "Resolution Switch"
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
+
+from .nodes.global_seed import register_global_seed_handler
 
 register_global_seed_handler()
 

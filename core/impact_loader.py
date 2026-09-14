@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 from types import ModuleType
 
-PACKAGE_ROOT = Path(__file__).resolve().parent
+PACKAGE_ROOT = Path(__file__).resolve().parent.parent
 IMPACT_PACK_REPO = "https://github.com/ltdrdata/ComfyUI-Impact-Pack.git"
 # Pin so oracle tests stay stable. Bump this when deliberately tracking Impact.
 IMPACT_PACK_COMMIT = "429d0159ad429e64d2b3916e6e7be9c22d025c3c"
